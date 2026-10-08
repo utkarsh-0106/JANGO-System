@@ -1,0 +1,41 @@
+.env
+.DS_Store
+
+# Python
+__pycache__/
+*.py[cod]
+*.db
+
+# Virtual environment
+venv/
+.venv/
+
+# Environment
+.env
+
+# Generated storage
+storage/
+
+# Local databases
+*.sqlite
+*.sqlite3
+
+# Local model artifacts
+*.gguf
+*.safetensors
+*.onnx
+*.pt
+*.pth
+
+# OS
+.DS_Store
+
+# Frontend
+node_modules/
+dist/
+
+# Build artifacts / caches
+frontend/dist/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
