@@ -1,115 +1,411 @@
-# JANGO — Enterprise Document Intelligence Platform
+# JANGO — Private AI
 
-JANGO is an enterprise document intelligence platform that lets users upload documents, process them through a Retrieval-Augmented Generation (RAG) pipeline, and ask questions against their private knowledge base.
+> **Enterprise Document Intelligence & RAG Platform**
 
-## 🎬 Project Demo
+JANGO is a production-deployed private AI knowledge assistant that allows users to securely upload documents and interact with them using natural-language questions.
 
-[▶️ Watch the 20-second project demo](https://portfolio-dqyw-opal.vercel.app/videos/jango.mp4)
+Instead of sending documents directly to an LLM, JANGO uses a Retrieval-Augmented Generation (RAG) pipeline to retrieve relevant document context first and then generate grounded answers with source references.
+
+## 🚀 Live Demo
+
+**Live Application:**  
+https://jango-system.vercel.app
+
+**Backend API:**  
+https://jango-system.onrender.com
+
+**API Documentation:**  
+https://jango-system.onrender.com/docs
+
+---
 
 ## ✨ Features
 
-- 🔐 JWT-based authentication
-- 📄 PDF document upload and processing
-- 🧩 Document chunking and embedding
-- 🔎 Semantic search with ChromaDB
-- 🤖 RAG-based question answering
-- 🔒 User-scoped document isolation
-- 📚 Source-grounded answers
-- ⚡ FastAPI backend
-- ⚛️ React frontend
-- 🗄️ SQLAlchemy database integration
+### 🔐 Authentication & Security
+- JWT-based authentication
+- Secure password hashing
+- Protected API routes
+- User-specific document isolation
+- Users can only retrieve their own documents
 
-## 🧠 RAG Pipeline
+### 📄 Document Intelligence
+- Upload PDF documents
+- Automatic PDF text extraction
+- Page-aware document processing
+- Intelligent text chunking
+- Document processing status tracking
+- Re-processing support
+- Document deletion with vector cleanup
+
+### 🧠 RAG Pipeline
+
+JANGO uses a complete Retrieval-Augmented Generation architecture:
 
 ```text
 PDF Upload
     ↓
-Text Extraction
+PDF Text Extraction
     ↓
-Document Chunking
+Text Chunking
     ↓
 Embeddings
     ↓
-ChromaDB
+Chroma Vector Database
     ↓
-Semantic Search
+Hybrid Retrieval
+    ├── Semantic Vector Search
+    └── BM25 Keyword Search
     ↓
-LLM
+Reciprocal Rank Fusion
     ↓
-Source-Grounded Answer
-🛠️ Tech Stack
-
-Frontend
-
-React
-Vite
-TypeScript
-
-Backend
-
-Python
-FastAPI
-Pydantic
-SQLAlchemy
-
-AI / RAG
-
-LangChain
-ChromaDB
-Ollama
-Qwen3
-
-Database & Security
-
-SQLite / PostgreSQL
-JWT
-bcrypt
-📌 Project
-
-JANGO is designed around private, user-scoped document intelligence, allowing users to query their uploaded knowledge base while keeping document retrieval isolated between users.
-
-## AI Cost & Token Tracking
-
-JANGO now includes per-user AI observability for RAG generation:
-
-- Input, output, and total token tracking from LangChain provider usage metadata.
-- Conservative token estimation when a provider does not expose usage counts.
-- Request latency and success/error status.
-- Provider/model-level usage aggregation.
-- Configurable estimated USD pricing per 1M input/output tokens.
-- Local Ollama is represented as $0.00 by default.
-- Protected `/api/usage/summary` and `/api/usage/recent` endpoints.
-- Premium frontend Analytics page with daily token activity, model usage, pricing, and recent request log.
-
-Configure cloud-provider pricing in `.env` when needed:
-
-```env
-AI_INPUT_COST_PER_1M_USD=0
-AI_OUTPUT_COST_PER_1M_USD=0
+Relevant Context
+    ↓
+Gemini LLM
+    ↓
+Grounded Answer + Sources
 ```
 
-These values are estimates only; provider pricing should be configured from the provider's current pricing page.
+### 🔎 Hybrid Search
 
-## Production deployment
+JANGO combines:
 
-JANGO is designed as a Vercel frontend + Render FastAPI backend deployment.
+- Semantic vector retrieval
+- BM25 keyword retrieval
+- Reciprocal Rank Fusion (RRF)
 
-### Cloud AI providers
+This improves retrieval for both conceptual questions and exact technical terms.
 
-The backend supports:
-- Gemini for LLM and embeddings
-- Groq for LLM inference
-- Claude/Anthropic for LLM inference
-- Ollama for local development
+### 🤖 AI Resilience
 
-For production RAG, use `EMBEDDING_PROVIDER=gemini`. Groq and Claude are generation providers; Gemini supplies the embedding model.
+The production RAG pipeline includes:
 
-### Render
+- Automatic retry for transient AI failures
+- Exponential backoff
+- Gemini model fallback
+- Provider fallback support
+- Graceful handling of temporary AI availability problems
 
-The included `render.yaml` provisions a FastAPI web service, a persistent data disk for Chroma/PDFs, and PostgreSQL. Set the API keys and `CORS_ORIGINS` in Render's Environment settings.
+### 💰 AI Usage & Cost Tracking
 
-### Vercel
+JANGO tracks AI usage including:
 
-Deploy the `frontend` directory as a Vite application and set `VITE_API_URL` to the public Render backend URL.
+- AI request count
+- Input tokens
+- Output tokens
+- Total tokens
+- Estimated cost
+- Average latency
+- Model/provider usage
+- Recent AI request history
 
-Never commit real API keys or `.env` files.
+### 📚 Source-Grounded Answers
+
+Every RAG response can display the document sources used to generate the answer.
+
+---
+
+## 🏗️ System Architecture
+
+```text
+                         ┌──────────────────────┐
+                         │        User          │
+                         └──────────┬───────────┘
+                                    │
+                                    ▼
+                         ┌──────────────────────┐
+                         │ React + Vite         │
+                         │ Vercel               │
+                         └──────────┬───────────┘
+                                    │ HTTPS
+                                    ▼
+                         ┌──────────────────────┐
+                         │ FastAPI Backend      │
+                         │ Render               │
+                         └──────────┬───────────┘
+                                    │
+                    ┌───────────────┼────────────────┐
+                    │               │                │
+                    ▼               ▼                ▼
+             ┌────────────┐  ┌─────────────┐  ┌────────────┐
+             │ PostgreSQL │  │   Chroma    │  │ Gemini AI  │
+             │ / Database │  │ Vector DB   │  │    LLM     │
+             └────────────┘  └──────┬──────┘  └────────────┘
+                                    │
+                                    ▼
+                              Hybrid Search
+                           ┌────────┴────────┐
+                           │                 │
+                        Vector             BM25
+                        Search            Search
+                           │                 │
+                           └────────┬────────┘
+                                    │
+                                    ▼
+                              RRF Fusion
+                                    │
+                                    ▼
+                              RAG Context
+                                    │
+                                    ▼
+                              Gemini Answer
+```
+
+---
+
+## 🛠️ Tech Stack
+
+### Frontend
+- React
+- Vite
+- JavaScript
+- Axios
+- React Router
+- CSS
+- Responsive UI
+
+### Backend
+- Python
+- FastAPI
+- Pydantic
+- SQLAlchemy
+- JWT Authentication
+- bcrypt
+- PyPDF
+- LangChain
+
+### AI / RAG
+- Google Gemini
+- ChromaDB
+- Embeddings
+- BM25
+- Hybrid Search
+- Reciprocal Rank Fusion (RRF)
+
+### Database & Storage
+- PostgreSQL / SQLite depending on environment
+- ChromaDB
+- File-based document storage
+
+### Deployment
+- Vercel — Frontend
+- Render — Backend
+- GitHub — Source Control
+
+---
+
+## 📊 AI Analytics
+
+JANGO includes an AI analytics dashboard that tracks:
+
+| Metric | Description |
+|---|---|
+| AI Requests | Number of AI generation requests |
+| Input Tokens | Tokens sent to the model |
+| Output Tokens | Tokens generated by the model |
+| Total Tokens | Combined token usage |
+| Estimated Cost | Estimated AI API cost |
+| Average Latency | Average model response time |
+| Model Usage | Usage grouped by AI model |
+
+---
+
+## 🔄 RAG Request Flow
+
+```text
+User Question
+      ↓
+Authentication Check
+      ↓
+User Document Scope
+      ↓
+Hybrid Retrieval
+      ↓
+Relevant Chunks
+      ↓
+Context Construction
+      ↓
+Gemini Generation
+      ↓
+Response Validation
+      ↓
+Answer + Sources
+```
+
+---
+
+## 🔒 Privacy & Document Isolation
+
+JANGO is designed around private document knowledge bases.
+
+Each document and vector chunk is associated with a user.
+
+Retrieval is filtered by the authenticated user's identity so one user cannot retrieve another user's documents.
+
+```text
+User A
+ ├── Document A1
+ ├── Document A2
+ └── Vector Chunks A
+
+User B
+ ├── Document B1
+ └── Vector Chunks B
+```
+
+Queries from User A cannot retrieve User B's document chunks.
+
+---
+
+## 🧪 Testing
+
+The backend includes automated tests covering:
+
+- Authentication
+- Document handling
+- RAG behavior
+- Retrieval
+- Hybrid search
+- AI provider behavior
+
+Run the backend tests with:
+
+```bash
+pytest -q
+```
+
+---
+
+## 💻 Local Development
+
+### Backend
+
+```bash
+cd backend
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+Start FastAPI:
+
+```bash
+cd ..
+python -m uvicorn backend.app.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+### Frontend
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+---
+
+## 🌐 Production Deployment
+
+JANGO uses a separated frontend/backend deployment architecture:
+
+```text
+GitHub
+  │
+  ├── Vercel
+  │     └── React Frontend
+  │
+  └── Render
+        └── FastAPI Backend
+              │
+              └── Gemini AI
+```
+
+Environment variables are used for production configuration and API credentials.
+
+Secrets such as API keys are never committed to the repository.
+
+---
+
+## 🎯 Why JANGO?
+
+Traditional document search often relies only on keyword matching.
+
+JANGO combines:
+
+```text
+Keyword Search
+      +
+Semantic Search
+      +
+RRF Ranking
+      +
+LLM Generation
+      =
+Grounded AI Answers
+```
+
+The goal is to make document interaction feel like talking to a private AI assistant while maintaining document-level access control and source transparency.
+
+---
+
+## 📌 Example Questions
+
+After uploading a resume, technical document, or company knowledge base, users can ask:
+
+```text
+What programming languages are mentioned?
+
+What projects are described in this document?
+
+What technologies were used in the backend?
+
+Summarize this document.
+
+What databases are mentioned?
+
+Explain the architecture described in this document.
+
+What information is not available in the document?
+```
+
+---
+
+## 🔮 Future Improvements
+
+Potential future improvements include:
+
+- Streaming AI responses
+- More AI provider integrations
+- Advanced document formats
+- OCR for scanned PDFs
+- Document collections/workspaces
+- Conversation history
+- Advanced observability
+- Rate limiting
+- Enterprise SSO
+- Cloud object storage
+- More advanced reranking models
+
+---
+
+## 👨‍💻 Author
+
+**Utkarsh Maheshwari**
+
+B.Tech — Computer Science & Engineering
+
+Interested in:
+
+- AI Engineering
+- Backend Engineering
+- Full-Stack Development
+- RAG Systems
+- LLM Applications
+- System Design
+
+---
+
+## ⭐ Live Project
+
+If you find JANGO interesting, try the live application:
+
+**https://jango-system.vercel.app**
