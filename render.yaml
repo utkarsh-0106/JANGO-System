@@ -29,6 +29,12 @@ services:
         value: gemini
       - key: GEMINI_CHAT_MODEL
         value: gemini-3.8-flash
+      - key: GEMINI_FALLBACK_MODELS
+        value: gemini-3.7-flash,gemini-3.6-flash
+      - key: AI_MAX_ATTEMPTS
+        value: "2"
+      - key: AI_RETRY_BASE_SECONDS
+        value: "1"
       - key: GEMINI_EMBEDDING_MODEL
         value: gemini-embedding-2
       - key: GROQ_CHAT_MODEL

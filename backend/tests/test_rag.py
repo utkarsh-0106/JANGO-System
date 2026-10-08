@@ -315,3 +315,56 @@ def test_rag_returns_unknown_when_no_documents():
         "I don't know based on the uploaded documents."
     )
     assert response.sources == []
+
+
+def test_rag_retries_transient_ai_failure():
+    request = RagRequest(question="What is the policy?")
+
+    retrieved_documents = [
+        (
+            LangChainDocument(
+                page_content="The policy allows 20 days of leave.",
+                metadata={
+                    "document_id": 1,
+                    "user_id": 1,
+                    "filename": "policy.pdf",
+                    "page_number": 1,
+                },
+            ),
+            0.1,
+        )
+    ]
+
+    first_failure = RuntimeError("503 UNAVAILABLE: high demand")
+    fake_response = MagicMock()
+    fake_response.content = "The policy allows 20 days of leave."
+    fake_llm = MagicMock()
+    fake_llm.invoke.return_value = fake_response
+
+    with patch.object(
+        rag,
+        "similarity_search",
+        return_value=retrieved_documents,
+    ), patch.object(
+        rag,
+        "_get_llm",
+        side_effect=[first_failure, fake_llm],
+    ) as get_llm, patch.object(
+        rag.settings,
+        "GEMINI_FALLBACK_MODELS",
+        "",
+    ), patch.object(
+        rag.settings,
+        "AI_MAX_ATTEMPTS",
+        2,
+    ):
+        response = rag.query_rag(request, user_id=1)
+
+    assert response.answer == "The policy allows 20 days of leave."
+    assert get_llm.call_count == 2
+
+
+def test_transient_error_detector():
+    assert rag._is_transient_ai_error(RuntimeError("503 UNAVAILABLE")) is True
+    assert rag._is_transient_ai_error(RuntimeError("429 rate limit")) is True
+    assert rag._is_transient_ai_error(RuntimeError("invalid API key")) is False
