@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
@@ -6,6 +8,8 @@ from backend.app.db import get_db
 from backend.app.schemas.rag import RagRequest, RagResponse
 from backend.app.services.rag import query_rag
 
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(
     prefix="/rag",
@@ -30,7 +34,8 @@ def rag_query(
         raise
 
     except Exception as exc:
+        logger.exception("Unhandled RAG route failure")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"An error occurred: {exc}",
+            detail="An unexpected error occurred while processing the question.",
         ) from exc

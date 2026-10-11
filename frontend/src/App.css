@@ -6827,3 +6827,51 @@ html[data-theme="gold-silver"] .dashboard-main * {
   --purple-light: #f4d77a !important;
 }
 
+
+
+/* JANGO UX update: larger authentication screens and clickable source evidence */
+.auth-page {
+  grid-template-columns: minmax(460px, 1fr) minmax(440px, 500px);
+  gap: clamp(42px, 6vw, 100px);
+  padding: clamp(32px, 4vw, 64px) clamp(36px, 6vw, 96px);
+}
+.auth-showcase { width: min(680px, 100%); min-height: 700px; }
+.auth-card { width: min(500px, 100%); padding: 48px; }
+.auth-card h1 { font-size: clamp(32px, 2.5vw, 40px); }
+.auth-card .subtitle { font-size: 15px; line-height: 1.65; }
+.auth-card form label { font-size: 14px; }
+.auth-card form input { min-height: 54px; font-size: 16px; padding: 14px 16px; }
+.auth-card form button { min-height: 54px; font-size: 16px; }
+.showcase-copy h2 { font-size: clamp(38px, 3.4vw, 52px); }
+.showcase-copy p { max-width: 520px; font-size: 16px; line-height: 1.8; }
+@media (max-width: 1050px) {
+  .auth-page { grid-template-columns: minmax(0, 1fr) minmax(390px, 460px); gap: 30px; padding: 30px; }
+  .auth-card { padding: 36px; }
+}
+@media (max-width: 850px) {
+  .auth-page { display: flex; flex-direction: column; gap: 20px; padding: 28px 18px; }
+  .auth-showcase { min-height: auto; }
+  .auth-card { width: min(520px, 100%); padding: 36px; }
+}
+@media (max-width: 600px) { .auth-card { padding: 28px 22px; } }
+
+.source-card-button { width: 100%; text-align: left; cursor: pointer; color: inherit; font: inherit; display: flex; align-items: center; gap: 12px; }
+.source-card-button:focus-visible, .citation-modal button:focus-visible { outline: 2px solid var(--accent-light); outline-offset: 3px; }
+.source-card-copy { display: flex; flex-direction: column; gap: 5px; min-width: 0; flex: 1; }
+.source-open-label { margin-left: auto; color: var(--accent-light); font-size: 12px; white-space: nowrap; opacity: .9; }
+.citation-modal-backdrop { position: fixed; inset: 0; z-index: 9999; display: grid; place-items: center; padding: 24px; background: rgba(0,0,0,.78); backdrop-filter: blur(12px); }
+.citation-modal { position: relative; width: min(760px, 100%); max-height: min(82vh, 850px); overflow: auto; padding: clamp(24px, 4vw, 40px); border: 1px solid rgb(var(--accent-rgb) / .38); border-radius: 22px; background: linear-gradient(145deg, #171713, #09090b 75%); color: #f6f6f6; box-shadow: 0 28px 100px rgba(0,0,0,.6); }
+.citation-modal-close { position: absolute; top: 14px; right: 18px; width: 38px; height: 38px; border: 1px solid rgba(255,255,255,.16); border-radius: 50%; color: #fff; background: rgba(255,255,255,.06); font-size: 25px; cursor: pointer; }
+.citation-eyebrow { color: var(--accent-light); font-size: 11px; font-weight: 800; letter-spacing: 2.5px; }
+.citation-modal h2 { margin: 12px 42px 4px 0; font-size: clamp(22px, 3vw, 30px); overflow-wrap: anywhere; }
+.citation-page-label { color: var(--accent-light); font-size: 13px; font-weight: 700; }
+.citation-help { color: #a7a7ad; font-size: 13px; line-height: 1.6; }
+.citation-passage { margin: 18px 0 24px; padding: 22px; border-left: 3px solid var(--accent-light); border-radius: 0 12px 12px 0; background: rgba(255,255,255,.045); color: #e4e4e7; font-size: 15px; line-height: 1.85; white-space: pre-wrap; overflow-wrap: anywhere; }
+.citation-highlight { padding: 1px 3px; border-radius: 3px; background: rgba(232,190,60,.32); color: #ffe69b; box-shadow: 0 0 0 1px rgba(232,190,60,.18); }
+.citation-modal-actions { display: flex; flex-wrap: wrap; gap: 12px; }
+.citation-modal-actions button { min-height: 44px; padding: 0 18px; border-radius: 10px; cursor: pointer; font-weight: 700; }
+.citation-open-pdf { border: 1px solid #e0bb47; background: linear-gradient(135deg, #c99f22, #f2d46d); color: #17130a; }
+.citation-open-pdf:disabled { opacity: .6; cursor: wait; }
+.citation-cancel { border: 1px solid rgba(255,255,255,.18); background: rgba(255,255,255,.05); color: #eee; }
+.citation-error { color: #ff9898; font-size: 13px; }
+@media (max-width: 560px) { .source-open-label { display: none; } .citation-modal-backdrop { padding: 12px; } .citation-passage { padding: 15px; } }

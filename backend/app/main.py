@@ -1,4 +1,8 @@
 from contextlib import asynccontextmanager
+import logging
+import re
+import time
+import uuid
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -10,6 +14,8 @@ from backend.app.routers.documents import router as documents_router
 from backend.app.routers.rag import router as rag_router
 from backend.app.routers.usage import router as usage_router
 from backend.app.settings import settings
+
+logger = logging.getLogger("jango.http")
 
 
 @asynccontextmanager
@@ -32,6 +38,32 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def request_observability(request, call_next):
+    """Attach a request ID and log latency without logging query/body data."""
+    request_id = request.headers.get("x-request-id", "").strip()
+    if not request_id or len(request_id) > 128 or not re.fullmatch(r"[A-Za-z0-9._:-]+", request_id):
+        request_id = uuid.uuid4().hex
+
+    started = time.perf_counter()
+    try:
+        response = await call_next(request)
+        response.headers["X-Request-ID"] = request_id
+        duration_ms = (time.perf_counter() - started) * 1000
+        logger.info(
+            "http_request request_id=%s method=%s path=%s status=%s duration_ms=%.2f",
+            request_id, request.method, request.url.path, response.status_code, duration_ms,
+        )
+        return response
+    except Exception:
+        duration_ms = (time.perf_counter() - started) * 1000
+        logger.exception(
+            "http_request_failed request_id=%s method=%s path=%s duration_ms=%.2f",
+            request_id, request.method, request.url.path, duration_ms,
+        )
+        raise
 
 
 @app.get("/api/health")

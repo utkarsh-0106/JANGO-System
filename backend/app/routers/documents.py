@@ -13,6 +13,7 @@ from fastapi import (
     status,
 )
 from sqlalchemy.orm import Session
+from fastapi.responses import FileResponse
 
 from ..api.auth import get_current_user
 from ..db import get_db, SessionLocal
@@ -233,6 +234,39 @@ def get_document_status_route(
         db,
         document_id,
         current_user.id,
+    )
+
+
+@router.get(
+    "/{document_id}/file",
+    response_class=FileResponse,
+)
+def get_document_file_route(
+    document_id: int,
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Serve a user's own PDF for authenticated citation viewing."""
+    document = get_document(db, document_id, current_user.id)
+    if not document:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Document not found",
+        )
+
+    file_path = Path(document.file_path)
+    if not file_path.is_file():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="PDF file is no longer available",
+        )
+
+    return FileResponse(
+        path=file_path,
+        media_type="application/pdf",
+        filename=Path(document.filename).name,
+        content_disposition_type="inline",
+        headers={"Cache-Control": "private, no-store"},
     )
 
 

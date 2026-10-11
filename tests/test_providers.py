@@ -66,7 +66,8 @@ def test_gemini_llm_provider_does_not_construct_ollama():
     kwargs = mock_gemini.call_args.kwargs
     assert kwargs["model"] == "gemini-2.0-flash"
     assert kwargs["google_api_key"] == "fake-gemini-key"
-    assert kwargs["temperature"] == 0
+    # Gemini 3.x integration intentionally omits the legacy temperature option.
+    assert "temperature" not in kwargs
     mock_ollama.assert_not_called()
     assert llm is mock_gemini.return_value
 

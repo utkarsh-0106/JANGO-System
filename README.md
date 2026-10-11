@@ -6,6 +6,10 @@ JANGO is a production-deployed private AI knowledge assistant that allows users 
 
 Instead of sending documents directly to an LLM, JANGO uses a Retrieval-Augmented Generation (RAG) pipeline to retrieve relevant document context first and then generate grounded answers with source references.
 
+
+### Multiple PDF Upload
+Select and upload multiple PDF files from the dashboard in one selection. Files are validated individually (PDF only, maximum 10 MB each) and uploaded sequentially through the existing authenticated upload endpoint; ingestion runs independently in the background. The dashboard reports successful and failed uploads separately.
+
 ## 🚀 Live Demo
 
 **Live Application:**  
@@ -255,6 +259,24 @@ User B
 Queries from User A cannot retrieve User B's document chunks.
 
 ---
+
+## 🔎 Retrieval Evaluation Utilities
+
+JANGO includes dependency-free offline retrieval metrics in `backend/app/evaluation/retrieval_metrics.py`:
+
+- Recall@K: fraction of known relevant chunks retrieved in the top K results.
+- MRR: rewards finding the first relevant result near the top.
+- NDCG@K: evaluates ranking quality with binary relevance labels.
+
+See [`docs/RAG_EVALUATION.md`](docs/RAG_EVALUATION.md) for examples and guidance on creating a reviewed benchmark dataset. These metrics calculate retrieval quality; they do not, by themselves, measure answer faithfulness or prove an improvement.
+
+## 📈 Request Observability
+
+HTTP requests now receive an `X-Request-ID` response header and emit a structured log entry with request ID, method, path, status code, and duration. The middleware deliberately avoids logging request bodies or query parameters. Use the request ID when correlating a browser report with backend logs.
+
+## ⚙️ Continuous Integration
+
+GitHub Actions runs backend tests and frontend lint/build checks on pushes and pull requests to `main`. The workflow is defined in `.github/workflows/ci.yml`.
 
 ## 🧪 Testing
 

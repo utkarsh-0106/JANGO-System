@@ -11,6 +11,9 @@ export default function Chat() {
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [selectedSource, setSelectedSource] = useState(null);
+  const [sourceError, setSourceError] = useState("");
+  const [openingSource, setOpeningSource] = useState(false);
 
   async function handleAsk(event) {
     event.preventDefault();
@@ -44,6 +47,7 @@ export default function Chat() {
           content: data.answer || "Jango returned an empty answer.",
           sources: Array.isArray(data.sources) ? data.sources : [],
           usage: data.usage || null,
+          question: trimmedQuestion,
         },
       ]);
     } catch (err) {
@@ -53,6 +57,48 @@ export default function Chat() {
       );
     } finally {
       setLoading(false);
+    }
+  }
+
+  function renderHighlightedPassage(text, questionText = "") {
+    if (!text) return "No supporting passage was returned for this source.";
+    const stopWords = new Set(["what", "does", "this", "that", "with", "from", "about", "have", "which", "where", "when", "who", "the", "and", "for", "are", "was"]);
+    const terms = [...new Set(questionText.toLowerCase().match(/[a-z0-9][a-z0-9_-]{2,}/g) || [])]
+      .filter((term) => !stopWords.has(term)).slice(0, 12);
+    if (!terms.length) return text;
+    const escaped = terms.map((term) => term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+    const pattern = new RegExp(`(${escaped.join("|")})`, "gi");
+    return text.split(pattern).map((part, index) =>
+      terms.some((term) => part.toLowerCase() === term)
+        ? <mark key={`${part}-${index}`} className="citation-highlight">{part}</mark>
+        : part
+    );
+  }
+
+  async function openCitedPdf(source) {
+    if (!source?.id) {
+      setSourceError("This citation does not include a document ID, so its PDF cannot be opened.");
+      return;
+    }
+    setOpeningSource(true);
+    setSourceError("");
+    try {
+      const response = await api.get(`/api/documents/${source.id}/file`, { responseType: "blob" });
+      const pdfUrl = URL.createObjectURL(new Blob([response.data], { type: "application/pdf" }));
+      const page = Math.max(1, Number.parseInt(source.page_number, 10) || 1);
+      const opened = window.open(`${pdfUrl}#page=${page}`, "_blank");
+      if (!opened) {
+        const link = document.createElement("a");
+        link.href = `${pdfUrl}#page=${page}`;
+        link.target = "_blank";
+        link.rel = "noopener noreferrer";
+        link.click();
+      }
+      window.setTimeout(() => URL.revokeObjectURL(pdfUrl), 120_000);
+    } catch (err) {
+      setSourceError(err.response?.data?.detail || "Could not open this PDF. Confirm the document still exists and try again.");
+    } finally {
+      setOpeningSource(false);
     }
   }
 
@@ -204,26 +250,20 @@ export default function Chat() {
 
                         {message.sources.map(
                           (source, sourceIndex) => (
-                            <div
-                              className="source-card"
-                              key={sourceIndex}
+                            <button
+                              type="button"
+                              className="source-card source-card-button"
+                              key={`${source.id || source.filename}-${sourceIndex}`}
+                              onClick={() => { setSelectedSource({ ...source, question: message.question || "" }); setSourceError(""); }}
+                              aria-label={`View source ${source.filename || "document"}, page ${source.page_number || "unknown"}`}
                             >
-                              <div className="source-number">
-                                {sourceIndex + 1}
+                              <div className="source-number">{sourceIndex + 1}</div>
+                              <div className="source-card-copy">
+                                <strong>{source.filename || "Document"}</strong>
+                                <span>Page {source.page_number || "—"}</span>
                               </div>
-
-                              <div>
-                                <strong>
-                                  {source.filename ||
-                                    "Document"}
-                                </strong>
-
-                                <span>
-                                  Page{" "}
-                                  {source.page_number || "—"}
-                                </span>
-                              </div>
-                            </div>
+                              <span className="source-open-label">View evidence ↗</span>
+                            </button>
                           )
                         )}
                       </div>
@@ -305,6 +345,24 @@ export default function Chat() {
           </p>
         </section>
       </main>
+
+      {selectedSource && (
+        <div className="citation-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setSelectedSource(null); }}>
+          <section className="citation-modal" role="dialog" aria-modal="true" aria-labelledby="citation-title">
+            <button type="button" className="citation-modal-close" onClick={() => setSelectedSource(null)} aria-label="Close citation">×</button>
+            <span className="citation-eyebrow">SOURCE EVIDENCE</span>
+            <h2 id="citation-title">{selectedSource.filename || "Document source"}</h2>
+            <p className="citation-page-label">Page {selectedSource.page_number || "—"}</p>
+            <p className="citation-help">Supporting passage from the retrieved document. Matching terms from your question are highlighted below.</p>
+            <blockquote className="citation-passage">{renderHighlightedPassage(selectedSource.content, selectedSource.question)}</blockquote>
+            {sourceError && <p className="citation-error">{sourceError}</p>}
+            <div className="citation-modal-actions">
+              <button type="button" className="citation-open-pdf" disabled={openingSource} onClick={() => openCitedPdf(selectedSource)}>{openingSource ? "Opening PDF…" : `Open original PDF · page ${selectedSource.page_number || 1} ↗`}</button>
+              <button type="button" className="citation-cancel" onClick={() => setSelectedSource(null)}>Close</button>
+            </div>
+          </section>
+        </div>
+      )}
     </div>
   );
 }

@@ -68,42 +68,62 @@ export default function Dashboard() {
   }, []);
 
   async function handleUpload(event) {
-    const file = event.target.files?.[0];
-    if (!file) return;
+    const selectedFiles = Array.from(event.target.files || []);
+    if (selectedFiles.length === 0) return;
 
     setError("");
     setSuccess("");
-
-    if (file.type !== "application/pdf") {
-      setError("Only PDF files are supported.");
-      event.target.value = "";
-      return;
-    }
-
-    if (file.size > 10 * 1024 * 1024) {
-      setError("File size must be 10 MB or less.");
-      event.target.value = "";
-      return;
-    }
-
     setUploading(true);
 
+    const uploaded = [];
+    const failed = [];
+    const maxFileSize = 10 * 1024 * 1024;
+
     try {
-      const formData = new FormData();
-      formData.append("file", file);
+      // Keep the existing single-file API contract and upload files one by one.
+      // This avoids oversized multipart requests and lets each PDF ingest independently.
+      for (const file of selectedFiles) {
+        const isPdf = file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
 
-      await api.post("/api/documents/upload", formData, {
-        headers: {
-          "Content-Type": "multipart/form-data",
-        },
-      });
+        if (!isPdf) {
+          failed.push(`${file.name}: only PDF files are supported`);
+          continue;
+        }
 
-      setSuccess(`${file.name} uploaded successfully.`);
+        if (file.size > maxFileSize) {
+          failed.push(`${file.name}: exceeds the 10 MB limit`);
+          continue;
+        }
+
+        if (file.size === 0) {
+          failed.push(`${file.name}: file is empty`);
+          continue;
+        }
+
+        try {
+          const formData = new FormData();
+          formData.append("file", file);
+          await api.post("/api/documents/upload", formData, {
+            headers: { "Content-Type": "multipart/form-data" },
+          });
+          uploaded.push(file.name);
+        } catch (err) {
+          const detail = err.response?.data?.detail || "upload failed";
+          failed.push(`${file.name}: ${detail}`);
+        }
+      }
+
+      if (uploaded.length > 0) {
+        setSuccess(
+          `${uploaded.length} PDF${uploaded.length === 1 ? "" : "s"} uploaded successfully: ${uploaded.join(", ")}. Ingestion continues in the background.`
+        );
+      }
+
+      if (failed.length > 0) {
+        setError(`Could not upload ${failed.length} file${failed.length === 1 ? "" : "s"}: ${failed.join("; ")}`);
+      }
+
       await fetchDocuments();
-    } catch (err) {
-      setError(
-        err.response?.data?.detail || "Document upload failed."
-      );
     } finally {
       setUploading(false);
       event.target.value = "";
@@ -254,17 +274,18 @@ export default function Dashboard() {
 
           <div className="upload-content">
             <p className="upload-kicker">DOCUMENT INGESTION</p>
-            <h2>Upload a document</h2>
+            <h2>Upload documents</h2>
             <p>
-              Add a PDF to your private enterprise knowledge base.
+              Add one or more PDFs to your private enterprise knowledge base.
             </p>
-            <small>PDF files only · Maximum size 10 MB</small>
+            <small>Select multiple PDFs · Maximum 10 MB per file</small>
           </div>
 
           <input
             ref={fileInputRef}
             type="file"
             accept=".pdf,application/pdf"
+            multiple
             onChange={handleUpload}
             hidden
           />
@@ -274,7 +295,7 @@ export default function Dashboard() {
             onClick={() => fileInputRef.current?.click()}
             disabled={uploading}
           >
-            {uploading ? "Uploading..." : "Choose PDF"}
+            {uploading ? "Uploading PDFs..." : "Choose PDFs"}
           </button>
         </section>
 
