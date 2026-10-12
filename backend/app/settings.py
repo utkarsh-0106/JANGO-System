@@ -47,7 +47,7 @@ class Settings(BaseSettings):
     DOCUMENT_STORAGE_DIRECTORY: str = "./storage/documents"
 
     model_config = ConfigDict(
-        env_file=".env",
+	env_file="backend/.env",
         env_file_encoding="utf-8",
         extra="ignore",
     )

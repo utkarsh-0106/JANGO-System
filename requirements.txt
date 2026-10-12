@@ -19,3 +19,6 @@ langchain-google-genai>=4.0,<5
 langchain-groq>=1.0,<2
 langchain-anthropic>=1.0,<2
 psycopg[binary]>=3.2,<4
+
+# PDF generation for document-upload tests
+reportlab>=4,<6

@@ -48,6 +48,7 @@ export default function Dashboard() {
   const [deletingId, setDeletingId] = useState(null);
 
   const fileInputRef = useRef(null);
+  const uploadLockRef = useRef(false);
 
   async function fetchDocuments() {
     try {
@@ -69,8 +70,9 @@ export default function Dashboard() {
 
   async function handleUpload(event) {
     const selectedFiles = Array.from(event.target.files || []);
-    if (selectedFiles.length === 0) return;
+    if (selectedFiles.length === 0 || uploadLockRef.current) return;
 
+    uploadLockRef.current = true;
     setError("");
     setSuccess("");
     setUploading(true);
@@ -103,8 +105,13 @@ export default function Dashboard() {
         try {
           const formData = new FormData();
           formData.append("file", file);
+          // One stable key per file operation: retries of this operation must reuse it.
+          const idempotencyKey = crypto.randomUUID();
           await api.post("/api/documents/upload", formData, {
-            headers: { "Content-Type": "multipart/form-data" },
+            headers: {
+              "Content-Type": "multipart/form-data",
+              "Idempotency-Key": idempotencyKey,
+            },
           });
           uploaded.push(file.name);
         } catch (err) {
@@ -125,6 +132,7 @@ export default function Dashboard() {
 
       await fetchDocuments();
     } finally {
+      uploadLockRef.current = false;
       setUploading(false);
       event.target.value = "";
     }

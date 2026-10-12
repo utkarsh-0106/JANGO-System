@@ -1,6 +1,7 @@
 from pathlib import Path
 import re
 import uuid
+import hashlib
 from typing import List
 
 from fastapi import (
@@ -11,8 +12,10 @@ from fastapi import (
     HTTPException,
     UploadFile,
     status,
+    Header,
 )
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 from fastapi.responses import FileResponse
 
 from ..api.auth import get_current_user
@@ -90,7 +93,26 @@ async def upload_document(
     file: UploadFile = File(...),
     current_user=Depends(get_current_user),
     db: Session = Depends(get_db),
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
 ):
+    if idempotency_key is not None:
+        idempotency_key = idempotency_key.strip()
+        if not idempotency_key or len(idempotency_key) > 128:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Idempotency-Key must contain 1–128 characters",
+            )
+        existing = (
+            db.query(Document)
+            .filter(
+                Document.user_id == current_user.id,
+                Document.idempotency_key == idempotency_key,
+            )
+            .first()
+        )
+        if existing:
+            return existing
+
     if not file.filename:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -116,6 +138,21 @@ async def upload_document(
             status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
             detail="File size exceeds maximum limit of 10 MB",
         )
+
+    # Hash the exact bytes. Identical content gets the same hash regardless of filename.
+    content_sha256 = hashlib.sha256(content).hexdigest()
+
+    # Content deduplication is scoped to the authenticated user.
+    existing_content = (
+        db.query(Document)
+        .filter(
+            Document.user_id == current_user.id,
+            Document.content_sha256 == content_sha256,
+        )
+        .first()
+    )
+    if existing_content:
+        return existing_content
 
     # Validate that the uploaded bytes are actually a readable PDF.
     try:
@@ -173,6 +210,8 @@ async def upload_document(
             document_data,
             current_user.id,
             str(file_path),
+            idempotency_key=idempotency_key,
+            content_sha256=content_sha256,
         )
 
         # Start PDF ingestion after the response is prepared.
@@ -184,10 +223,34 @@ async def upload_document(
 
         return document
 
+    except IntegrityError:
+        db.rollback()
+        existing_query = db.query(Document).filter(
+            Document.user_id == current_user.id,
+        )
+        existing = None
+        if idempotency_key:
+            existing = existing_query.filter(
+                Document.idempotency_key == idempotency_key,
+            ).first()
+        if existing is None:
+            existing = db.query(Document).filter(
+                Document.user_id == current_user.id,
+                Document.content_sha256 == content_sha256,
+            ).first()
+        if existing:
+            if file_path.exists():
+                file_path.unlink()
+            return existing
+        if file_path.exists():
+            file_path.unlink()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="This upload conflicts with an existing document operation. Retry with the same Idempotency-Key.",
+        )
     except Exception:
         if file_path.exists():
             file_path.unlink()
-
         raise
 
 

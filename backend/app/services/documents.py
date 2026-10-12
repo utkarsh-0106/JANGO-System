@@ -17,6 +17,8 @@ def create_document(
     document: DocumentCreate,
     user_id: int,
     file_path: str,
+    idempotency_key: str | None = None,
+    content_sha256: str | None = None,
 ) -> Document:
     db_document = Document(
         user_id=user_id,
@@ -25,6 +27,8 @@ def create_document(
         file_path=file_path,
         file_size=document.file_size,
         content_type=document.content_type,
+        idempotency_key=idempotency_key,
+        content_sha256=content_sha256,
         status=document.status,
     )
 

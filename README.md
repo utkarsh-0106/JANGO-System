@@ -431,3 +431,12 @@ Interested in:
 If you find JANGO interesting, try the live application:
 
 **https://jango-system.vercel.app**
+
+## Duplicate upload protection
+
+The dashboard prevents duplicate upload handlers from running while a batch is in progress. Each file operation sends an `Idempotency-Key` header. The API returns the existing document when the same authenticated user repeats a request with the same key, and a unique database index on `(user_id, idempotency_key)` protects against concurrent duplicate requests. The key is nullable to preserve compatibility with older document records and clients that do not send it. Re-uploading the same PDF as a new operation intentionally creates a new document unless the same idempotency key is reused.
+
+
+## Duplicate PDF uploads
+
+Uploads are deduplicated per user by SHA-256 of the exact PDF bytes. Uploading the same file under a different filename or idempotency key returns the existing document. Different users may upload the same file independently. Existing database records are preserved during migration; legacy duplicate rows are not automatically deleted.

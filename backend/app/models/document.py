@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Text, Index
 
 from backend.app.db import Base
 
@@ -24,6 +24,12 @@ class Document(Base):
     file_size = Column(Integer, nullable=False)
     content_type = Column(String(100), nullable=False)
 
+    # Reused by retries of the same upload operation. Nullable for legacy records.
+    idempotency_key = Column(String(128), nullable=True)
+
+    # SHA-256 of the exact uploaded bytes; unique per user to prevent duplicate PDFs.
+    content_sha256 = Column(String(64), nullable=True)
+
     status = Column(
         String(50),
         nullable=False,
@@ -42,3 +48,18 @@ class Document(Base):
         onupdate=datetime.utcnow,
         nullable=False,
     )
+
+
+Index(
+    "uq_documents_user_idempotency_key",
+    Document.user_id,
+    Document.idempotency_key,
+    unique=True,
+)
+
+Index(
+    "uq_documents_user_content_sha256",
+    Document.user_id,
+    Document.content_sha256,
+    unique=True,
+)
