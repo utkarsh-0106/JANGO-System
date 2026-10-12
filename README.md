@@ -53,8 +53,9 @@ flowchart TD
     LLM --> ANSWER[Answer and Sources]
     ANSWER --> API
     API --> FRONTEND
+```
 
-Component Responsibilities
+### Component Responsibilities
 
 Component
 
