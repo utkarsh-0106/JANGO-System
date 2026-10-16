@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 
 import api from "../api/axios";
@@ -14,6 +14,24 @@ export default function Chat() {
   const [selectedSource, setSelectedSource] = useState(null);
   const [sourceError, setSourceError] = useState("");
   const [openingSource, setOpeningSource] = useState(false);
+  const [responseLanguage, setResponseLanguage] = useState("auto");
+  const [listening, setListening] = useState(false);
+  const [speakingMessage, setSpeakingMessage] = useState(null);
+  const [voiceError, setVoiceError] = useState("");
+  const recognitionRef = useRef(null);
+  const utteranceRef = useRef(null);
+
+  useEffect(() => () => {
+    if (recognitionRef.current) {
+      try { recognitionRef.current.stop(); } catch { /* already stopped */ }
+    }
+    if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+  }, []);
+
+  useEffect(() => {
+    if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+    setSpeakingMessage(null);
+  }, [responseLanguage]);
 
   async function handleAsk(event) {
     event.preventDefault();
@@ -23,6 +41,7 @@ export default function Chat() {
     if (!trimmedQuestion || loading) return;
 
     setError("");
+    stopSpeaking();
 
     const userMessage = {
       role: "user",
@@ -37,6 +56,7 @@ export default function Chat() {
       const response = await api.post("/api/rag/query", {
         question: trimmedQuestion,
         top_k: 5,
+        response_language: responseLanguage,
       });
 
       const data = response.data || {};
@@ -58,6 +78,121 @@ export default function Chat() {
     } finally {
       setLoading(false);
     }
+  }
+
+
+  function toggleVoiceInput() {
+    setVoiceError("");
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      setVoiceError("Voice input is not supported in this browser. Try the latest Chrome or Edge, or type your question.");
+      return;
+    }
+    if (listening && recognitionRef.current) {
+      recognitionRef.current.stop();
+      setListening(false);
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.lang = responseLanguage === "english" ? "en-IN" : "hi-IN";
+    recognition.interimResults = true;
+    recognition.continuous = false;
+    recognition.onresult = (event) => {
+      const transcript = Array.from(event.results).map((result) => result[0]?.transcript || "").join(" ");
+      setQuestion(transcript);
+    };
+    recognition.onerror = (event) => {
+      const messages = {
+        "not-allowed": "Microphone permission was denied. Allow microphone access for localhost in your browser settings.",
+        network: "Speech recognition could not reach the browser's speech service. Check your internet connection and try again, or type your question.",
+        "no-speech": "No speech was detected. Move closer to the microphone and try again.",
+        "audio-capture": "No microphone was found. Check your Mac's microphone settings and try again.",
+      };
+      setVoiceError(messages[event.error] || `Voice input failed (${event.error}). You can still type your question.`);
+      setListening(false);
+    };
+    recognition.onend = () => setListening(false);
+    recognitionRef.current = recognition;
+    try {
+      recognition.start();
+      setListening(true);
+    } catch {
+      setVoiceError("Could not start the microphone. Please try again or type your question.");
+      setListening(false);
+    }
+  }
+
+  function stopSpeaking() {
+    if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+    utteranceRef.current = null;
+    setSpeakingMessage(null);
+  }
+
+  function speakAnswer(text, messageIndex) {
+    if (!text) return;
+    if (!("speechSynthesis" in window)) {
+      setVoiceError("Voice output is not supported in this browser. Try the latest Chrome or Edge.");
+      return;
+    }
+    if (speakingMessage === messageIndex && window.speechSynthesis.speaking) {
+      stopSpeaking();
+      return;
+    }
+
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    const language = responseLanguage === "english" ? "en-IN" : responseLanguage === "hindi" ? "hi-IN" : "hi-IN";
+    utterance.lang = language;
+    utterance.rate = 0.92;
+    utterance.onend = () => {
+      if (utteranceRef.current === utterance) {
+        utteranceRef.current = null;
+        setSpeakingMessage(null);
+      }
+    };
+    utterance.onerror = () => {
+      if (utteranceRef.current === utterance) {
+        utteranceRef.current = null;
+        setSpeakingMessage(null);
+      }
+    };
+    utteranceRef.current = utterance;
+    setSpeakingMessage(messageIndex);
+    window.speechSynthesis.speak(utterance);
+  }
+
+  function renderAnswer(text) {
+    const lines = String(text || "").replace(/\r/g, "").split("\n");
+    const blocks = [];
+    let listItems = [];
+    const inlineFormat = (value) => value.split(/(\*\*[^*]+\*\*|`[^`]+`)/g).filter(Boolean).map((part, i) => {
+      if (part.startsWith("**") && part.endsWith("**")) return <strong key={i}>{part.slice(2, -2)}</strong>;
+      if (part.startsWith("`") && part.endsWith("`")) return <code key={i}>{part.slice(1, -1)}</code>;
+      return part;
+    });
+    const flushList = () => {
+      if (listItems.length) {
+        blocks.push(<ul key={`list-${blocks.length}`}>{listItems.map((item, i) => <li key={i}>{inlineFormat(item)}</li>)}</ul>);
+        listItems = [];
+      }
+    };
+    lines.forEach((rawLine) => {
+      const line = rawLine.trim();
+      if (!line) { flushList(); return; }
+      const heading = line.match(/^(#{1,3})\s+(.+)$/);
+      const bullet = line.match(/^(?:[-*•]|\d+[.)])\s+(.+)$/);
+      if (bullet) { listItems.push(bullet[1]); return; }
+      flushList();
+      if (heading) {
+        const Tag = heading[1].length === 1 ? "h3" : "h4";
+        blocks.push(<Tag key={`heading-${blocks.length}`}>{inlineFormat(heading[2])}</Tag>);
+      } else {
+        blocks.push(<p key={`paragraph-${blocks.length}`}>{inlineFormat(line)}</p>);
+      }
+    });
+    flushList();
+    return blocks;
   }
 
   function renderHighlightedPassage(text, questionText = "") {
@@ -102,7 +237,7 @@ export default function Chat() {
     }
   }
 
-  function useSuggestion(text) {
+  function handleSuggestion(text) {
     setQuestion(text);
   }
 
@@ -139,9 +274,17 @@ export default function Chat() {
           <p className="eyebrow">PRIVATE KNOWLEDGE ASSISTANT</p>
           <h1>Ask Jango</h1>
           <p>
-            Ask questions about your uploaded documents and get
-            answers grounded in their content.
+            Ask questions in English, Hindi, or Hinglish. Answers remain grounded in your uploaded documents.
           </p>
+          <div className="jango-language-control">
+            <label htmlFor="jango-response-language">Reply language</label>
+            <select id="jango-response-language" value={responseLanguage} onChange={(event) => setResponseLanguage(event.target.value)}>
+              <option value="auto">Auto-detect</option>
+              <option value="english">English</option>
+              <option value="hindi">Hindi (हिन्दी)</option>
+              <option value="hinglish">Hinglish</option>
+            </select>
+          </div>
         </header>
 
         <section className="chat-container">
@@ -172,7 +315,7 @@ export default function Chat() {
               <div className="suggested-questions">
                 <button
                   onClick={() =>
-                    useSuggestion(
+                    handleSuggestion(
                       "What programming languages and technical skills does this person have?"
                     )
                   }
@@ -183,7 +326,7 @@ export default function Chat() {
 
                 <button
                   onClick={() =>
-                    useSuggestion(
+                    handleSuggestion(
                       "What projects has this person worked on?"
                     )
                   }
@@ -194,7 +337,7 @@ export default function Chat() {
 
                 <button
                   onClick={() =>
-                    useSuggestion(
+                    handleSuggestion(
                       "Summarize this person's experience."
                     )
                   }
@@ -230,9 +373,15 @@ export default function Chat() {
                       : "Jango"}
                   </span>
 
-                  <div className="message-content">
-                    {message.content}
+                  <div className={`message-content${message.role === "assistant" ? " jango-formatted-answer" : ""}`}>
+                    {message.role === "assistant" ? renderAnswer(message.content) : message.content}
                   </div>
+
+                  {message.role === "assistant" && (
+                    <button type="button" className={`jango-speak-button${speakingMessage === index ? " is-speaking" : ""}`} onClick={() => speakAnswer(message.content, index)} aria-label={speakingMessage === index ? "Stop speaking" : "Read answer aloud"}>
+                      {speakingMessage === index ? "⏹ Stop speaking" : "🔊 Listen"}
+                    </button>
+                  )}
 
                   {message.role === "assistant" && message.usage && (
                     <div className="message-usage">
@@ -310,6 +459,9 @@ export default function Chat() {
             className="chat-input-area"
             onSubmit={handleAsk}
           >
+            <button type="button" className={`jango-mic-button${listening ? " is-listening" : ""}`} onClick={toggleVoiceInput} disabled={loading} aria-label={listening ? "Stop voice input" : "Start voice input"} title={listening ? "Stop listening" : "Ask using your voice"}>
+              {listening ? "■ Stop" : "🎙 Speak"}
+            </button>
             <textarea
               value={question}
               onChange={(event) =>
@@ -338,6 +490,8 @@ export default function Chat() {
               {loading ? "Thinking..." : "Ask Jango ↑"}
             </button>
           </form>
+
+          {voiceError && <p className="jango-voice-error" role="status">{voiceError}</p>}
 
           <p className="chat-disclaimer">
             Jango answers using your private document knowledge

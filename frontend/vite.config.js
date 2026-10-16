@@ -7,9 +7,6 @@ export default defineConfig({
   server: {
     allowedHosts: true,
   },
-  server: {
-    allowedHosts: true,
-  },
   preview: {
     allowedHosts: ['yoga-song-showers-licensed.trycloudflare.com'],
   },

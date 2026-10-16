@@ -6875,3 +6875,175 @@ html[data-theme="gold-silver"] .dashboard-main * {
 .citation-cancel { border: 1px solid rgba(255,255,255,.18); background: rgba(255,255,255,.05); color: #eee; }
 .citation-error { color: #ff9898; font-size: 13px; }
 @media (max-width: 560px) { .source-open-label { display: none; } .citation-modal-backdrop { padding: 12px; } .citation-passage { padding: 15px; } }
+
+/* Multilingual chat and browser voice controls */
+.jango-language-control {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 18px;
+  flex-wrap: wrap;
+}
+.jango-language-control label {
+  color: var(--text-secondary, #a7a7b5);
+  font-size: 0.9rem;
+}
+.jango-language-control select {
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 10px;
+  padding: 9px 12px;
+  background: var(--surface, #171722);
+  color: var(--text-primary, #f5f5f7);
+  font: inherit;
+  max-width: 100%;
+}
+.jango-mic-button,
+.jango-speak-button {
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: rgba(148, 163, 184, 0.08);
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  white-space: nowrap;
+}
+.jango-mic-button:disabled { opacity: 0.55; cursor: not-allowed; }
+.jango-mic-button.is-listening {
+  border-color: #ef4444;
+  background: rgba(239, 68, 68, 0.12);
+}
+.jango-speak-button { margin-top: 10px; font-size: 0.85rem; }
+.jango-voice-error {
+  color: #fca5a5;
+  font-size: 0.9rem;
+  margin: 10px 0;
+}
+
+
+/* Readable multilingual answers and interruptible speech */
+.jango-chat-page .message-content {
+  font-size: 1.08rem;
+  line-height: 1.85;
+  overflow-wrap: anywhere;
+}
+.jango-chat-page .jango-formatted-answer p {
+  margin: 0 0 1rem;
+  line-height: 1.85;
+}
+.jango-chat-page .jango-formatted-answer p:last-child { margin-bottom: 0; }
+.jango-chat-page .jango-formatted-answer h3,
+.jango-chat-page .jango-formatted-answer h4 {
+  color: var(--accent-light, #f4d77a);
+  font-weight: 750;
+  line-height: 1.4;
+  margin: 1.25rem 0 .65rem;
+}
+.jango-chat-page .jango-formatted-answer h3 { font-size: 1.28rem; }
+.jango-chat-page .jango-formatted-answer h4 { font-size: 1.15rem; }
+.jango-chat-page .jango-formatted-answer ul {
+  margin: .35rem 0 1rem;
+  padding-left: 1.5rem;
+}
+.jango-chat-page .jango-formatted-answer li {
+  padding-left: .25rem;
+  margin: .4rem 0;
+  line-height: 1.75;
+}
+.jango-chat-page .jango-formatted-answer strong { color: #fff; font-weight: 750; }
+.jango-chat-page .jango-formatted-answer code {
+  padding: .12rem .35rem;
+  border-radius: 5px;
+  background: rgba(255,255,255,.09);
+  font-size: .94em;
+}
+.jango-speak-button.is-speaking {
+  border-color: #d4af37;
+  background: rgba(212,175,55,.16);
+  color: #f4d77a;
+}
+.jango-chat-page .jango-voice-error {
+  font-size: 1rem;
+  line-height: 1.6;
+  max-width: 760px;
+  margin: 14px auto;
+}
+@media (max-width: 640px) {
+  .jango-chat-page .message-content { font-size: 1rem; line-height: 1.75; }
+}
+
+/* Premium multilingual language selector */
+.jango-language-control {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  margin-top: 22px;
+  flex-wrap: wrap;
+}
+
+.jango-language-control label {
+  color: var(--text-secondary, #a7a7b5);
+  font-size: 0.9rem;
+  font-weight: 600;
+  letter-spacing: 0.015em;
+}
+
+.jango-language-control select {
+  appearance: none;
+  -webkit-appearance: none;
+  min-width: 220px;
+  max-width: 100%;
+  padding: 13px 46px 13px 17px;
+  border: 1px solid rgba(212, 175, 95, 0.38);
+  border-radius: 14px;
+  background-color: rgba(17, 17, 17, 0.92);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='%23D8B76A' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 16px center;
+  color: var(--text-primary, #f5f5f7);
+  font: inherit;
+  font-size: 0.96rem;
+  font-weight: 500;
+  line-height: 1.5;
+  cursor: pointer;
+  outline: none;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.16);
+  transition: border-color 180ms ease, box-shadow 180ms ease,
+    background-color 180ms ease, transform 180ms ease;
+}
+
+.jango-language-control select:hover {
+  border-color: rgba(212, 175, 95, 0.78);
+  background-color: rgba(29, 26, 19, 0.98);
+  box-shadow: 0 5px 22px rgba(212, 175, 95, 0.09);
+}
+
+.jango-language-control select:focus-visible {
+  border-color: #D8B76A;
+  box-shadow: 0 0 0 3px rgba(212, 175, 95, 0.18);
+}
+
+.jango-language-control select option {
+  background-color: #151515;
+  color: #f5f5f7;
+}
+
+@media (max-width: 560px) {
+  .jango-language-control {
+    align-items: stretch;
+    gap: 9px;
+    margin-top: 18px;
+  }
+
+  .jango-language-control label {
+    width: 100%;
+    text-align: left;
+  }
+
+  .jango-language-control select {
+    width: 100%;
+    min-width: 0;
+  }
+}

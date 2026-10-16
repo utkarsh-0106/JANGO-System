@@ -368,3 +368,17 @@ def test_transient_error_detector():
     assert rag._is_transient_ai_error(RuntimeError("503 UNAVAILABLE")) is True
     assert rag._is_transient_ai_error(RuntimeError("429 rate limit")) is True
     assert rag._is_transient_ai_error(RuntimeError("invalid API key")) is False
+
+
+def test_rag_request_accepts_response_language():
+    assert RagRequest(question="नमस्ते", response_language="hindi").response_language == "hindi"
+    assert RagRequest(question="What is RAG?", response_language="english").response_language == "english"
+    assert RagRequest(question="RAG kya hai?", response_language="hinglish").response_language == "hinglish"
+    assert RagRequest(question="Hello").response_language == "auto"
+
+
+def test_rag_request_rejects_unsupported_response_language():
+    from pydantic import ValidationError
+
+    with pytest.raises(ValidationError):
+        RagRequest(question="Hello", response_language="french")

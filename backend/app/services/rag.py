@@ -228,6 +228,14 @@ def query_rag(
         raise HTTPException(status_code=400, detail="Question cannot be empty")
 
     top_k = max(1, min(rag_request.top_k or 5, 20))
+    response_language = rag_request.response_language or "auto"
+    language_instructions = {
+        "auto": "Detect the language and style of the user question. Reply in that same language/style. If it mixes Hindi and English, reply naturally in Hinglish using Roman script.",
+        "english": "Reply in clear, natural English.",
+        "hindi": "Reply in natural Hindi using Devanagari script. Keep standard technical terms in English when clearer.",
+        "hinglish": "Reply in natural conversational Hinglish using Roman script, mixing Hindi and English as people commonly do. Keep standard technical terms in English.",
+    }
+    language_instruction = language_instructions.get(response_language, language_instructions["auto"])
 
     try:
         results = similarity_search(
@@ -243,7 +251,10 @@ def query_rag(
 
     if not results:
         return RagResponse(
-            answer="I don't know based on the uploaded documents.",
+            answer={
+                "hindi": "Diye gaye uploaded documents ke basis par mujhe iska jawab nahi mila.",
+                "hinglish": "Uploaded documents ke basis par mujhe iska jawab nahi mila.",
+            }.get(response_language, "I don't know based on the uploaded documents."),
             sources=[],
             usage=None,
         )
@@ -284,6 +295,8 @@ You are an enterprise document assistant.
 
 Answer the user's question ONLY using the supplied document context.
 
+Response language and style: {language_instruction}
+
 Rules:
 - Do not invent facts.
 - If the answer is not present in the context, say you don't know.
@@ -303,6 +316,7 @@ Document context:
         {
             "context": context,
             "question": question,
+            "language_instruction": language_instruction,
         }
     )
 
@@ -318,7 +332,7 @@ Document context:
 
         usage = extract_token_usage(
             response,
-            prompt_text=f"{context}\n{question}",
+            prompt_text=f"{context}\n{question}\nLanguage: {response_language}",
             output_text=answer,
         )
 
@@ -354,7 +368,7 @@ Document context:
             try:
                 failed_usage = extract_token_usage(
                     None,
-                    prompt_text=f"{context}\n{question}",
+                    prompt_text=f"{context}\n{question}\nLanguage: {response_language}",
                 )
                 record_usage(
                     db,
