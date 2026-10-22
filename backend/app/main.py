@@ -14,6 +14,7 @@ from backend.app.models import AIUsage, Document, User
 from backend.app.routers.documents import router as documents_router
 from backend.app.routers.rag import router as rag_router
 from backend.app.routers.usage import router as usage_router
+from backend.app.routers.telegram import router as telegram_router
 from backend.app.settings import settings
 
 logger = logging.getLogger("jango.http")
@@ -27,6 +28,25 @@ async def lifespan(_: FastAPI):
     # create_all does not add columns to existing databases; add nullable
     # idempotency/hash columns before creating their indexes.
     inspector = inspect(engine)
+    # create_all does not alter an existing users table. Add Telegram columns
+    # in a backward-compatible way so existing accounts and data are preserved.
+    if "users" in inspector.get_table_names():
+        user_columns = {column["name"] for column in inspector.get_columns("users")}
+        with engine.begin() as connection:
+            if "telegram_user_id" not in user_columns:
+                connection.execute(text("ALTER TABLE users ADD COLUMN telegram_user_id BIGINT"))
+            if "telegram_link_token_hash" not in user_columns:
+                connection.execute(text("ALTER TABLE users ADD COLUMN telegram_link_token_hash VARCHAR(64)"))
+            if "telegram_link_expires_at" not in user_columns:
+                connection.execute(text("ALTER TABLE users ADD COLUMN telegram_link_expires_at TIMESTAMP"))
+            connection.execute(text(
+                "CREATE UNIQUE INDEX IF NOT EXISTS uq_users_telegram_user_id "
+                "ON users (telegram_user_id)"
+            ))
+            connection.execute(text(
+                "CREATE INDEX IF NOT EXISTS ix_users_telegram_link_token_hash "
+                "ON users (telegram_link_token_hash)"
+            ))
     if "documents" in inspector.get_table_names():
         columns = {column["name"] for column in inspector.get_columns("documents")}
         with engine.begin() as connection:
@@ -133,3 +153,4 @@ app.include_router(auth_router)
 app.include_router(documents_router)
 app.include_router(rag_router, prefix="/api")
 app.include_router(usage_router, prefix="/api")
+app.include_router(telegram_router, prefix="/api")

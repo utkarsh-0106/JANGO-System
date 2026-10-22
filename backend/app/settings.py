@@ -11,6 +11,10 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
 
+    # Telegram integration is disabled until a bot token is configured.
+    TELEGRAM_BOT_TOKEN: str | None = None
+    TELEGRAM_WEBHOOK_SECRET: str | None = None
+
     FRONTEND_ORIGIN: str = "http://localhost:5173"
     CORS_ORIGINS: str = "http://localhost:5173"
 

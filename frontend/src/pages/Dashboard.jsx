@@ -13,6 +13,7 @@ import documentsImage from "../assets/documents.png";
 
 import Sidebar from "../components/Sidebar";
 import AskJangoCard from "../components/AskJangoCard";
+import TelegramConnectCard from "../components/TelegramConnectCard";
 
 
 function formatBytes(bytes) {
@@ -46,6 +47,7 @@ export default function Dashboard() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [deletingId, setDeletingId] = useState(null);
+  const [sendingTelegramId, setSendingTelegramId] = useState(null);
 
   const fileInputRef = useRef(null);
   const uploadLockRef = useRef(false);
@@ -135,6 +137,20 @@ export default function Dashboard() {
       uploadLockRef.current = false;
       setUploading(false);
       event.target.value = "";
+    }
+  }
+
+  async function handleSendToTelegram(document) {
+    setSendingTelegramId(document.id);
+    setError("");
+    setSuccess("");
+    try {
+      await api.post("/api/telegram/send", { kind: "document", document_id: document.id });
+      setSuccess(`${document.filename} was sent to your Telegram chat.`);
+    } catch (err) {
+      setError(err.response?.data?.detail || "Unable to send this document to Telegram.");
+    } finally {
+      setSendingTelegramId(null);
     }
   }
 
@@ -240,6 +256,8 @@ export default function Dashboard() {
             {success}
           </div>
         )}
+
+        <TelegramConnectCard />
 
         <section className="stats-grid">
           <div className="stat-card">

@@ -39,3 +39,30 @@ frontend/dist/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+
+# Local environment secrets
+.env
+.env.*
+!.env.example
+backend/.env
+frontend/.env
+frontend/.env.*
+!frontend/.env.example
+
+# Python environments and caches
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Frontend generated files
+node_modules/
+dist/
+
+# Local databases and user uploads
+*.db
+*.sqlite
+*.sqlite3
+storage/
+chroma/

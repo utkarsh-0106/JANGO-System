@@ -7047,3 +7047,60 @@ html[data-theme="gold-silver"] .dashboard-main * {
     min-width: 0;
   }
 }
+
+
+/* Telegram document delivery */
+.telegram-connect-card {
+  margin: 1.25rem 0;
+  padding: 1.25rem;
+  border: 1px solid var(--border-color, rgba(148, 163, 184, .28));
+  border-radius: 18px;
+  background: var(--card-background, rgba(255,255,255,.025));
+}
+.telegram-connect-heading, .telegram-connect-actions, .telegram-code-panel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .8rem;
+  flex-wrap: wrap;
+}
+.telegram-connect-heading h2 { margin: .2rem 0 .4rem; }
+.telegram-connect-heading p:not(.eyebrow) { margin: 0; opacity: .78; max-width: 720px; }
+.telegram-status-pill {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: .35rem .7rem;
+  background: rgba(148,163,184,.15);
+  font-size: .82rem;
+  white-space: nowrap;
+}
+.telegram-status-pill.is-connected { background: rgba(34,197,94,.14); color: #22c55e; }
+.telegram-action-button, .telegram-row-button, .telegram-code-panel button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(148,163,184,.35);
+  border-radius: 9px;
+  padding: .62rem .85rem;
+  background: #d6ad55;
+  color: #171717;
+  font: inherit;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+}
+.telegram-action-button.secondary { background: transparent; color: inherit; }
+.telegram-action-button:disabled, .telegram-row-button:disabled { opacity: .55; cursor: not-allowed; }
+.telegram-code-panel { justify-content: flex-start; margin: .8rem 0; padding: .8rem; border-radius: 10px; background: rgba(148,163,184,.1); }
+.telegram-code-panel code { overflow-wrap: anywhere; }
+.telegram-feedback { margin: .6rem 0; font-size: .92rem; }
+.telegram-feedback.error { color: #ef6b6b; }
+.telegram-row-button { padding: .42rem .62rem; font-size: .82rem; }
+.telegram-message-actions { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: .7rem; }
+@media (max-width: 700px) {
+  .telegram-connect-card { padding: 1rem; }
+  .telegram-connect-heading { align-items: flex-start; }
+  .telegram-action-button { width: 100%; }
+  .documents-table { min-width: 700px; }
+}

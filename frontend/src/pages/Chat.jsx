@@ -6,6 +6,7 @@ import api from "../api/axios";
 import chatAI from "../assets/chat-ai.png";
 import jangoAvatar from "../assets/jango-avatar.png";
 import logo from "../assets/logo.png";
+import TelegramConnectCard from "../components/TelegramConnectCard";
 export default function Chat() {
   const [question, setQuestion] = useState("");
   const [messages, setMessages] = useState([]);
@@ -18,6 +19,8 @@ export default function Chat() {
   const [listening, setListening] = useState(false);
   const [speakingMessage, setSpeakingMessage] = useState(null);
   const [voiceError, setVoiceError] = useState("");
+  const [telegramSending, setTelegramSending] = useState(null);
+  const [telegramFeedback, setTelegramFeedback] = useState("");
   const recognitionRef = useRef(null);
   const utteranceRef = useRef(null);
 
@@ -80,6 +83,23 @@ export default function Chat() {
     }
   }
 
+
+  async function sendAnswerToTelegram(message, index, kind) {
+    setTelegramSending(`${index}-${kind}`);
+    setTelegramFeedback("");
+    try {
+      await api.post("/api/telegram/send", {
+        kind,
+        title: kind === "summary" ? "JANGO AI Summary" : "JANGO Generated Report",
+        content: message.content,
+      });
+      setTelegramFeedback(kind === "summary" ? "AI summary sent to Telegram." : "Report sent to Telegram as a text file.");
+    } catch (err) {
+      setTelegramFeedback(err.response?.data?.detail || "Unable to send this result to Telegram.");
+    } finally {
+      setTelegramSending(null);
+    }
+  }
 
   function toggleVoiceInput() {
     setVoiceError("");
@@ -349,6 +369,9 @@ export default function Chat() {
             </div>
           )}
 
+          <TelegramConnectCard />
+          {telegramFeedback && <p className="telegram-feedback" role="status">{telegramFeedback}</p>}
+
           <div className="messages">
             {messages.map((message, index) => (
               <div
@@ -378,9 +401,19 @@ export default function Chat() {
                   </div>
 
                   {message.role === "assistant" && (
+                    <>
                     <button type="button" className={`jango-speak-button${speakingMessage === index ? " is-speaking" : ""}`} onClick={() => speakAnswer(message.content, index)} aria-label={speakingMessage === index ? "Stop speaking" : "Read answer aloud"}>
                       {speakingMessage === index ? "⏹ Stop speaking" : "🔊 Listen"}
                     </button>
+                    <div className="telegram-message-actions">
+                      <button type="button" className="telegram-row-button" onClick={() => sendAnswerToTelegram(message, index, "summary")} disabled={telegramSending === `${index}-summary`}>
+                        {telegramSending === `${index}-summary` ? "Sending…" : "Send AI summary to Telegram"}
+                      </button>
+                      <button type="button" className="telegram-row-button" onClick={() => sendAnswerToTelegram(message, index, "report")} disabled={telegramSending === `${index}-report`}>
+                        {telegramSending === `${index}-report` ? "Sending…" : "Send as report"}
+                      </button>
+                    </div>
+                    </>
                   )}
 
                   {message.role === "assistant" && message.usage && (
