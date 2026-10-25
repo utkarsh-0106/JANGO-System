@@ -232,26 +232,36 @@ export default function Chat() {
 
   async function openCitedPdf(source) {
     if (!source?.id) {
-      setSourceError("This citation does not include a document ID, so its PDF cannot be opened.");
+      setSourceError("This citation does not include a document ID, so its original file cannot be opened.");
       return;
     }
     setOpeningSource(true);
     setSourceError("");
     try {
       const response = await api.get(`/api/documents/${source.id}/file`, { responseType: "blob" });
-      const pdfUrl = URL.createObjectURL(new Blob([response.data], { type: "application/pdf" }));
-      const page = Math.max(1, Number.parseInt(source.page_number, 10) || 1);
-      const opened = window.open(`${pdfUrl}#page=${page}`, "_blank");
-      if (!opened) {
+      const extension = (source.filename || "").split(".").pop()?.toLowerCase();
+      const isPdf = extension === "pdf";
+      const blob = new Blob([response.data], { type: response.headers?.["content-type"] || "application/octet-stream" });
+      const fileUrl = URL.createObjectURL(blob);
+      if (isPdf) {
+        const page = Math.max(1, Number.parseInt(source.page_number, 10) || 1);
+        const opened = window.open(`${fileUrl}#page=${page}`, "_blank");
+        if (!opened) {
+          const link = document.createElement("a");
+          link.href = `${fileUrl}#page=${page}`;
+          link.target = "_blank";
+          link.rel = "noopener noreferrer";
+          link.click();
+        }
+      } else {
         const link = document.createElement("a");
-        link.href = `${pdfUrl}#page=${page}`;
-        link.target = "_blank";
-        link.rel = "noopener noreferrer";
+        link.href = fileUrl;
+        link.download = source.filename || "document";
         link.click();
       }
-      window.setTimeout(() => URL.revokeObjectURL(pdfUrl), 120_000);
+      window.setTimeout(() => URL.revokeObjectURL(fileUrl), 120_000);
     } catch (err) {
-      setSourceError(err.response?.data?.detail || "Could not open this PDF. Confirm the document still exists and try again.");
+      setSourceError(err.response?.data?.detail || "Could not open this original file. Confirm the document still exists and try again.");
     } finally {
       setOpeningSource(false);
     }
@@ -539,12 +549,12 @@ export default function Chat() {
             <button type="button" className="citation-modal-close" onClick={() => setSelectedSource(null)} aria-label="Close citation">×</button>
             <span className="citation-eyebrow">SOURCE EVIDENCE</span>
             <h2 id="citation-title">{selectedSource.filename || "Document source"}</h2>
-            <p className="citation-page-label">Page {selectedSource.page_number || "—"}</p>
+            <p className="citation-page-label">{selectedSource.page_number ? `Page ${selectedSource.page_number}` : selectedSource.sheet_name ? `Worksheet: ${selectedSource.sheet_name}` : selectedSource.section ? `Section: ${selectedSource.section}` : "Document excerpt"}</p>
             <p className="citation-help">Supporting passage from the retrieved document. Matching terms from your question are highlighted below.</p>
             <blockquote className="citation-passage">{renderHighlightedPassage(selectedSource.content, selectedSource.question)}</blockquote>
             {sourceError && <p className="citation-error">{sourceError}</p>}
             <div className="citation-modal-actions">
-              <button type="button" className="citation-open-pdf" disabled={openingSource} onClick={() => openCitedPdf(selectedSource)}>{openingSource ? "Opening PDF…" : `Open original PDF · page ${selectedSource.page_number || 1} ↗`}</button>
+              <button type="button" className="citation-open-pdf" disabled={openingSource} onClick={() => openCitedPdf(selectedSource)}>{openingSource ? "Opening file…" : selectedSource.filename?.toLowerCase().endsWith(".pdf") ? `Open original PDF · page ${selectedSource.page_number || 1} ↗` : "Download original file ↗"}</button>
               <button type="button" className="citation-cancel" onClick={() => setSelectedSource(null)}>Close</button>
             </div>
           </section>

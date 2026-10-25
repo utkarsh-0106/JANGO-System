@@ -87,10 +87,10 @@ export default function Dashboard() {
       // Keep the existing single-file API contract and upload files one by one.
       // This avoids oversized multipart requests and lets each PDF ingest independently.
       for (const file of selectedFiles) {
-        const isPdf = file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
-
-        if (!isPdf) {
-          failed.push(`${file.name}: only PDF files are supported`);
+        const allowedExtensions = [".pdf", ".docx", ".pptx", ".odt", ".txt", ".md", ".log", ".rtf", ".csv", ".xlsx", ".xls", ".json", ".yaml", ".yml", ".xml", ".html", ".htm"];
+        const extension = file.name.toLowerCase().slice(file.name.lastIndexOf("."));
+        if (!allowedExtensions.includes(extension)) {
+          failed.push(`${file.name}: unsupported file type`);
           continue;
         }
 
@@ -124,7 +124,7 @@ export default function Dashboard() {
 
       if (uploaded.length > 0) {
         setSuccess(
-          `${uploaded.length} PDF${uploaded.length === 1 ? "" : "s"} uploaded successfully: ${uploaded.join(", ")}. Ingestion continues in the background.`
+          `${uploaded.length} file${uploaded.length === 1 ? "" : "s"} uploaded successfully: ${uploaded.join(", ")}. Processing continues in the background.`
         );
       }
 
@@ -302,15 +302,15 @@ export default function Dashboard() {
             <p className="upload-kicker">DOCUMENT INGESTION</p>
             <h2>Upload documents</h2>
             <p>
-              Add one or more PDFs to your private enterprise knowledge base.
+              Add documents and data files to your private enterprise knowledge base.
             </p>
-            <small>Select multiple PDFs · Maximum 10 MB per file</small>
+            <small>PDF, DOCX, PPTX, ODT, TXT, MD, LOG, RTF, CSV, XLSX, XLS, JSON, YAML, XML, HTML · Maximum 10 MB per file</small>
           </div>
 
           <input
             ref={fileInputRef}
             type="file"
-            accept=".pdf,application/pdf"
+            accept=".pdf,.docx,.pptx,.odt,.txt,.md,.log,.rtf,.csv,.xlsx,.xls,.json,.yaml,.yml,.xml,.html,.htm,application/pdf,text/plain,text/csv,application/json"
             multiple
             onChange={handleUpload}
             hidden
@@ -321,7 +321,7 @@ export default function Dashboard() {
             onClick={() => fileInputRef.current?.click()}
             disabled={uploading}
           >
-            {uploading ? "Uploading PDFs..." : "Choose PDFs"}
+            {uploading ? "Uploading files..." : "Choose files"}
           </button>
         </section>
 
@@ -376,7 +376,7 @@ export default function Dashboard() {
                     <tr key={document.id}>
                       <td>
                         <div className="document-name">
-                          <span className="pdf-icon">PDF</span>
+                          <span className="pdf-icon">{document.filename?.split(".").pop()?.slice(0, 4).toUpperCase() || "FILE"}</span>
 
                           <div>
                             <strong>{document.filename}</strong>

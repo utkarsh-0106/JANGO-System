@@ -22,3 +22,13 @@ psycopg[binary]>=3.2,<4
 
 # PDF generation for document-upload tests
 reportlab>=4,<6
+
+# Multi-format document ingestion
+python-docx>=1.1,<2
+openpyxl>=3.1,<4
+
+python-pptx>=1.0,<2
+xlrd>=2.0,<3
+striprtf>=0.0.29,<1
+odfpy>=1.4,<2
+PyYAML>=6.0,<7

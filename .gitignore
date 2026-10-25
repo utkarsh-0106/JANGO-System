@@ -66,3 +66,47 @@ dist/
 *.sqlite3
 storage/
 chroma/
+
+# Local environment secrets
+.env
+.env.*
+!.env.example
+backend/.env
+frontend/.env
+frontend/.env.*
+!frontend/.env.example
+
+# Local development artifacts
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+node_modules/
+dist/
+*.db
+*.sqlite
+*.sqlite3
+storage/
+chroma/
+
+# Local secrets and generated files
+.env
+.env.*
+!.env.example
+backend/.env
+frontend/.env
+frontend/.env.*
+!frontend/.env.example
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+node_modules/
+dist/
+*.db
+*.sqlite
+*.sqlite3
+storage/
+chroma/

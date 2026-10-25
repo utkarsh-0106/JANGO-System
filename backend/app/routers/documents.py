@@ -44,16 +44,31 @@ router = APIRouter(
 
 STORAGE_DIR = Path(settings.DOCUMENT_STORAGE_DIRECTORY)
 MAX_FILE_SIZE = 10 * 1024 * 1024
+ALLOWED_EXTENSIONS = {".pdf", ".docx", ".pptx", ".odt", ".txt", ".md", ".log", ".rtf", ".csv", ".xlsx", ".xls", ".json", ".yaml", ".yml", ".xml", ".html", ".htm"}
+CONTENT_TYPES = {
+    ".pdf": "application/pdf",
+    ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    ".odt": "application/vnd.oasis.opendocument.text",
+    ".txt": "text/plain",
+    ".md": "text/markdown",
+    ".log": "text/plain",
+    ".rtf": "application/rtf",
+    ".csv": "text/csv",
+    ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    ".xls": "application/vnd.ms-excel",
+    ".json": "application/json",
+    ".yaml": "application/yaml",
+    ".yml": "application/yaml",
+    ".xml": "application/xml",
+    ".html": "text/html",
+    ".htm": "text/html",
+}
 
 
 def sanitize_filename(filename: str) -> str:
-    filename = Path(filename or "document.pdf").name
-    filename = re.sub(r"[^A-Za-z0-9_.-]", "_", filename)
-
-    if not filename.lower().endswith(".pdf"):
-        filename += ".pdf"
-
-    return filename
+    filename = Path(filename or "document").name
+    return re.sub(r"[^A-Za-z0-9_.-]", "_", filename)
 
 
 def ingest_document_background(
@@ -119,10 +134,11 @@ async def upload_document(
             detail="No file uploaded",
         )
 
-    if file.content_type != "application/pdf":
+    extension = Path(file.filename).suffix.lower()
+    if extension not in ALLOWED_EXTENSIONS:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Only PDF files are supported",
+            detail="Unsupported file type. Supported formats: PDF, DOCX, PPTX, ODT, TXT, MD, LOG, RTF, CSV, XLSX, XLS, JSON, YAML, XML, and HTML.",
         )
 
     content = await file.read()
@@ -154,30 +170,57 @@ async def upload_document(
     if existing_content:
         return existing_content
 
-    # Validate that the uploaded bytes are actually a readable PDF.
+    # Validate the format before storing it. File extensions are allow-listed above;
+    # parsers below validate the actual content for formats with structured containers.
     try:
         from io import BytesIO
-        from pypdf import PdfReader
-
-        reader = PdfReader(BytesIO(content))
-
-        if reader.is_encrypted:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Encrypted PDFs are not supported",
-            )
-
-        # Force page access so corrupt PDFs are detected.
-        len(reader.pages)
-
+        if extension == ".pdf":
+            from pypdf import PdfReader
+            reader = PdfReader(BytesIO(content))
+            if reader.is_encrypted:
+                raise HTTPException(status_code=400, detail="Encrypted PDFs are not supported")
+            len(reader.pages)
+        elif extension == ".docx":
+            from docx import Document as DocxDocument
+            DocxDocument(BytesIO(content))
+        elif extension == ".xlsx":
+            from openpyxl import load_workbook
+            workbook = load_workbook(BytesIO(content), read_only=True, data_only=True)
+            workbook.close()
+        elif extension == ".xls":
+            import xlrd
+            workbook = xlrd.open_workbook(file_contents=content, on_demand=True)
+            workbook.release_resources()
+        elif extension == ".pptx":
+            from pptx import Presentation
+            Presentation(BytesIO(content))
+        elif extension == ".odt":
+            from odf.opendocument import load
+            import tempfile
+            with tempfile.NamedTemporaryFile(suffix=".odt") as temporary:
+                temporary.write(content)
+                temporary.flush()
+                load(temporary.name)
+        elif extension == ".json":
+            import json
+            json.loads(content.decode("utf-8-sig"))
+        elif extension in {".yaml", ".yml"}:
+            import yaml
+            yaml.safe_load(content.decode("utf-8-sig"))
+        elif extension == ".xml":
+            import xml.etree.ElementTree as ET
+            ET.fromstring(content)
+        elif extension == ".rtf":
+            content.decode("utf-8", errors="replace")
+        elif extension in {".txt", ".md", ".log", ".csv", ".html", ".htm"}:
+            content.decode("utf-8-sig")
     except HTTPException:
         raise
-
     except Exception as exc:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Invalid PDF: {exc}",
-        )
+            detail=f"Invalid {extension.lstrip('.').upper()} file or unsupported encoding: {exc}",
+        ) from exc
 
     original_filename = file.filename
     safe_filename = sanitize_filename(original_filename)
@@ -201,7 +244,7 @@ async def upload_document(
             filename=original_filename,
             stored_filename=stored_filename,
             file_size=len(content),
-            content_type="application/pdf",
+            content_type=CONTENT_TYPES[extension],
             status="uploaded",
         )
 
@@ -214,7 +257,7 @@ async def upload_document(
             content_sha256=content_sha256,
         )
 
-        # Start PDF ingestion after the response is prepared.
+        # Start format-aware ingestion after the response is prepared.
         background_tasks.add_task(
             ingest_document_background,
             document.id,
@@ -309,7 +352,7 @@ def get_document_file_route(
     current_user=Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Serve a user's own PDF for authenticated citation viewing."""
+    """Serve a user's own uploaded file for authenticated access."""
     document = get_document(db, document_id, current_user.id)
     if not document:
         raise HTTPException(
@@ -326,9 +369,9 @@ def get_document_file_route(
 
     return FileResponse(
         path=file_path,
-        media_type="application/pdf",
+        media_type=document.content_type or "application/octet-stream",
         filename=Path(document.filename).name,
-        content_disposition_type="inline",
+        content_disposition_type="inline" if (document.content_type or "").startswith("application/pdf") else "attachment",
         headers={"Cache-Control": "private, no-store"},
     )
 

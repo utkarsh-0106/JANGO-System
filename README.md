@@ -1,6 +1,6 @@
 # JANGO — Enterprise Document Intelligence Platform
 
-**JANGO is an AI-powered document intelligence platform for uploading PDFs, searching their contents, and generating context-aware answers with Retrieval-Augmented Generation (RAG). It also supports Telegram account linking, document delivery, and document Q&A through a Telegram bot.**
+**JANGO is an AI-powered document intelligence platform for uploading common documents, presentations, spreadsheets, and structured data files, searching their contents, and generating context-aware answers with Retrieval-Augmented Generation (RAG). It also supports Telegram account linking, document delivery, and document Q&A through a Telegram bot.**
 
 [GitHub Repository](https://github.com/utkarsh-0106/JANGO-System)
 
@@ -26,7 +26,7 @@
 
 ## Overview
 
-JANGO lets authenticated users upload PDF documents and ask natural-language questions about their contents. The backend extracts and chunks document text, generates embeddings, indexes chunks in ChromaDB, retrieves relevant passages for a question, and passes that context to a configured language model.
+JANGO lets authenticated users upload supported document and data files and ask natural-language questions about their contents. The backend extracts and chunks document text, generates embeddings, indexes chunks in ChromaDB, retrieves relevant passages for a question, and passes that context to a configured language model.
 
 The React frontend communicates with a FastAPI backend. Relational storage holds structured application data and document metadata, while the vector store supports semantic retrieval. Configurable AI providers allow the application to use supported hosted providers or local inference, depending on the environment.
 
@@ -35,7 +35,7 @@ The Telegram integration extends this workflow beyond the web interface. Users c
 ## Features
 
 ### Document intelligence
-- PDF upload, validation, text extraction, and chunking
+- Multi-format upload, validation, text extraction, and chunking (PDF, DOCX, PPTX, ODT, spreadsheets, text, markup, and structured data)
 - Embedding generation and semantic retrieval using ChromaDB
 - RAG-based question answering grounded in retrieved document passages
 - Source/document metadata returned where available
@@ -96,7 +96,7 @@ flowchart TD
     TGS --> SQL
 
     DOCS --> INGEST[Document Ingestion]
-    INGEST --> EXTRACT[PDF Text Extraction]
+    INGEST --> EXTRACT[Format-Aware Text Extraction]
     EXTRACT --> CHUNK[Text Chunking]
     CHUNK --> EMBED[Embedding Provider]
     EMBED --> VS[Vector Store Service]
@@ -124,7 +124,7 @@ flowchart TD
 | Authentication | Identifies users and protects authenticated endpoints |
 | SQLAlchemy | Relational data access |
 | Relational database | Stores users, document metadata, and related application state |
-| Ingestion service | Extracts PDF text, chunks content, and initiates indexing |
+| Ingestion service | Extracts text from supported file formats, chunks content, and initiates indexing |
 | Embedding provider | Converts text into vector representations |
 | ChromaDB | Stores vectors and supports similarity retrieval |
 | RAG service | Retrieves relevant chunks and coordinates answer generation |
@@ -137,7 +137,7 @@ flowchart TD
 
 ### 1. Document ingestion
 
-1. An authenticated user uploads a PDF through the web frontend.
+1. An authenticated user uploads a supported file through the web frontend.
 2. FastAPI validates the request and applies the relevant access checks.
 3. The backend checks request idempotency and content deduplication where configured.
 4. The document record is created or an existing result is reused as appropriate.
@@ -508,3 +508,17 @@ These are suggested improvements, not claims that each capability is currently i
 ---
 
 **JANGO — Enterprise Document Intelligence Platform**
+
+## Multi-format document ingestion
+
+JANGO accepts common document and data formats up to the configured 10 MB per-file limit:
+
+- **PDF** — text-based PDFs with page metadata (scanned/image-only PDFs need OCR, which is not included).
+- **Word** — DOCX paragraphs and tables; ODT text documents.
+- **Presentations** — PPTX slide text and tables.
+- **Spreadsheets** — CSV, XLSX, and legacy XLS; sheet/row metadata is retained. XLSX reads cached values and does not recalculate formulas.
+- **Plain text and markup** — TXT, Markdown, LOG, RTF, HTML/HTM, XML, YAML/YML, and JSON.
+
+The backend validates the extension and parses supported structured containers before storing a file. A background ingestion task extracts text, records source metadata (such as PDF page, presentation slide, spreadsheet sheet/row, or document section), chunks the text, and indexes it in ChromaDB. The existing RAG retrieval pipeline and per-user vector filtering are reused, so supported formats can be queried from the web chat and Telegram bot without separate Q&A implementations.
+
+**Important limitations:** Legacy binary Word `.doc`, PowerPoint `.ppt`, macro-enabled office files, scanned-PDF OCR, image understanding, spreadsheet formula recalculation, and exact spreadsheet computation are not supported. CSV/XLS/XLSX are indexed as textual rows for retrieval; for exact totals or complex calculations, verify results against the source data. Install the dependencies from `requirements.txt` after updating the project.
