@@ -1,108 +1,155 @@
-# JANGO — Enterprise Document Intelligence Platform
+# JANGO --- Enterprise Document Intelligence Platform
 
-**JANGO is an AI-powered document intelligence platform for uploading common documents, presentations, spreadsheets, and structured data files, searching their contents, and generating context-aware answers with Retrieval-Augmented Generation (RAG). It also supports Telegram account linking, document delivery, and document Q&A through a Telegram bot.**
+JANGO is an AI-powered document intelligence platform for uploading,
+indexing, searching, and asking natural-language questions about
+documents and structured data. It combines a React/Vite frontend,
+FastAPI backend, relational metadata storage, ChromaDB vector search,
+configurable AI providers, and Telegram integration.
 
-[GitHub Repository](https://github.com/utkarsh-0106/JANGO-System)
+**Repository:** https://github.com/utkarsh-0106/JANGO-System
 
----
+------------------------------------------------------------------------
 
 ## Table of Contents
 
-- [Overview](#overview)
-- [Features](#features)
-- [Architecture](#architecture)
-- [Core Workflows](#core-workflows)
-- [Technology Stack](#technology-stack)
-- [Project Structure](#project-structure)
-- [Local Development](#local-development)
-- [Environment Configuration](#environment-configuration)
-- [Telegram Integration](#telegram-integration)
-- [Testing](#testing)
-- [Deployment](#deployment)
-- [Security and Production Checklist](#security-and-production-checklist)
-- [Engineering Trade-offs](#engineering-trade-offs)
-- [Future Improvements](#future-improvements)
-- [Author](#author)
+-   [Overview](#overview)
+-   [Features](#features)
+-   [Architecture](#architecture)
+-   [Core Workflows](#core-workflows)
+-   [Technology Stack](#technology-stack)
+-   [Project Structure](#project-structure)
+-   [Local Development](#local-development)
+-   [Environment Configuration](#environment-configuration)
+-   [Telegram Integration](#telegram-integration)
+-   [Testing](#testing)
+-   [Deployment](#deployment)
+-   [Security and Production
+    Considerations](#security-and-production-considerations)
+-   [Known Limitations](#known-limitations)
+-   [Documentation](#documentation)
+-   [Author](#author)
 
 ## Overview
 
-JANGO lets authenticated users upload supported document and data files and ask natural-language questions about their contents. The backend extracts and chunks document text, generates embeddings, indexes chunks in ChromaDB, retrieves relevant passages for a question, and passes that context to a configured language model.
+JANGO allows authenticated users to upload supported files, extract and
+index their contents, and ask questions grounded in retrieved document
+passages. The ingestion pipeline extracts text, creates chunks and
+embeddings, and stores vectors in ChromaDB. At query time, the RAG
+service retrieves relevant passages and supplies them as context to a
+configured language model.
 
-The React frontend communicates with a FastAPI backend. Relational storage holds structured application data and document metadata, while the vector store supports semantic retrieval. Configurable AI providers allow the application to use supported hosted providers or local inference, depending on the environment.
+The relational database stores users, document metadata, and processing
+state. The vector database stores embeddings and retrieval metadata.
+Configurable AI providers support hosted inference and local inference
+where the required services and models are available.
 
-The Telegram integration extends this workflow beyond the web interface. Users can link a Telegram account to their JANGO account, ask document-related questions through the bot, and request supported document deliveries or AI-generated summaries/reports.
+JANGO also integrates with Telegram. Users can link a Telegram account,
+ask document-related questions through the bot, and use supported
+document delivery workflows.
 
 ## Features
 
-### Document intelligence
-- Multi-format upload, validation, text extraction, and chunking (PDF, DOCX, PPTX, ODT, spreadsheets, text, markup, and structured data)
-- Embedding generation and semantic retrieval using ChromaDB
-- RAG-based question answering grounded in retrieved document passages
-- Source/document metadata returned where available
-- User-scoped document access and retrieval
-- SHA-256 content-based document deduplication
-- Idempotency-key handling for repeated upload requests
-- Background document ingestion
+### Document ingestion and management
+
+-   Multi-format document upload and validation.
+-   Background ingestion for supported document formats.
+-   Text extraction, chunking, embedding generation, and ChromaDB
+    indexing.
+-   Per-user document ownership and retrieval scoping.
+-   SHA-256 content hashing for duplicate-content detection.
+-   Idempotency-key handling for repeated upload requests.
+-   Processing state, timestamps, error details, and ingestion-attempt
+    tracking.
+-   Retry endpoint for supported failed document-processing jobs.
+-   Source metadata where available, such as PDF page, slide, sheet,
+    row, or section.
+
+### Retrieval-Augmented Generation
+
+-   Document question answering using retrieved passages as context.
+-   Vector retrieval through ChromaDB.
+-   Hybrid lexical and semantic retrieval where enabled by the
+    configured implementation.
+-   Retrieval evaluation metrics and evaluation fixtures.
+-   User-scoped retrieval to help prevent cross-user document access.
+-   Source/document information returned where available.
 
 ### Accounts and persistence
-- JWT-based authentication and password hashing
-- FastAPI request validation and API orchestration
-- SQLAlchemy-based relational persistence
-- User and document metadata stored separately from vector embeddings
-- SQLite for local development; production database depends on deployment configuration
 
-### AI configuration
-- Configurable language-model and embedding providers
-- Provider/model selection through environment configuration
-- Support for local inference where the required Ollama models are installed
-- AI-assisted responses and document summaries where implemented by the configured provider
+-   JWT-based authentication.
+-   Password hashing.
+-   FastAPI request validation and API orchestration.
+-   SQLAlchemy relational persistence.
+-   Database initialization and schema migration support.
+-   SQLite for local development; production database depends on
+    deployment configuration.
+
+### AI provider configuration
+
+-   Configurable language-model and embedding providers.
+-   Provider and model selection through environment configuration.
+-   Support for local inference through Ollama when the required models
+    are installed.
+-   AI-generated answers, summaries, and supported report workflows.
+-   Provider configuration and failure handling depend on the active
+    implementation and environment.
 
 ### Telegram integration
-- Telegram bot integration with JANGO
-- Account linking using a one-time link code
-- Authenticated API endpoints for Telegram status and delivery actions
-- Telegram webhook endpoint for incoming bot updates
-- Document-related Q&A through Telegram, using the backend's configured AI/RAG workflow
-- Supported document delivery and AI-generated summary/report actions from the web application
-- Webhook request verification using a configured Telegram webhook secret
 
-### Engineering and deployment
-- Automated backend tests with pytest
-- Frontend production build using Vite
-- Vercel frontend and Render backend deployment configuration
-- Environment-based configuration for local and hosted deployments
+-   Telegram bot integration.
+-   Account linking using a one-time link code.
+-   Authenticated API endpoints for Telegram status and supported
+    delivery actions.
+-   HTTPS webhook endpoint for incoming bot updates.
+-   Document-related Q&A through the configured backend RAG/AI workflow.
+-   Supported document delivery and AI-generated content workflows.
+-   Webhook request verification using a configured Telegram webhook
+    secret.
 
-> The precise capabilities available at runtime depend on the checked-out code, configured environment variables, AI provider, database, and deployment environment.
+### Reliability, testing, and deployment
+
+-   Idempotent upload handling and content-based duplicate detection.
+-   Document processing lifecycle tracking and failure diagnostics.
+-   Automated backend tests using pytest.
+-   Frontend production build using Vite.
+-   Environment-based configuration.
+-   Deployment configuration for a Vercel frontend and Render backend.
+-   Architecture, deployment, environment, troubleshooting, and
+    upgrade-audit documentation.
+
+> Runtime capabilities depend on the checked-out code, configured
+> environment variables, AI provider, database, storage configuration,
+> and deployment environment.
 
 ## Architecture
 
-```mermaid
+``` mermaid
 flowchart TD
     USER[User] --> WEB[React + Vite Frontend]
     USER --> TGUSER[Telegram User]
 
     WEB -->|REST / JSON| API[FastAPI Backend]
     TGUSER <--> BOT[Telegram Bot API]
-    BOT -->|Webhook HTTPS| TGH[Telegram Webhook Router]
+    BOT -->|HTTPS Webhook| TGH[Telegram Webhook Router]
     TGH --> API
 
     API --> AUTH[Authentication and Authorization]
     API --> DOCS[Document Router]
-    API --> RAG[RAG / Query Services]
+    API --> RAG[RAG and Retrieval Services]
     API --> TGS[Telegram Service]
 
     AUTH --> SQL[(Relational Database)]
     DOCS --> SQL
     TGS --> SQL
 
-    DOCS --> INGEST[Document Ingestion]
-    INGEST --> EXTRACT[Format-Aware Text Extraction]
+    DOCS --> INGEST[Background Ingestion]
+    INGEST --> EXTRACT[Text Extraction]
     EXTRACT --> CHUNK[Text Chunking]
     CHUNK --> EMBED[Embedding Provider]
     EMBED --> VS[Vector Store Service]
     VS --> CHROMA[(ChromaDB)]
 
-    RAG --> RETRIEVE[Retrieve Relevant Chunks]
+    RAG --> RETRIEVE[Hybrid / Semantic Retrieval]
     RETRIEVE --> CHROMA
     RETRIEVE --> CONTEXT[Build Prompt Context]
     CONTEXT --> LLM[Configured Language Model]
@@ -110,182 +157,202 @@ flowchart TD
 
     ANSWER --> API
     API --> WEB
-    TGS -->|Send messages / supported files| BOT
+    TGS -->|Messages and supported files| BOT
     BOT --> TGUSER
 ```
 
 ### Component responsibilities
 
-| Component | Responsibility |
-|---|---|
-| React + Vite | Web UI for authentication, documents, chat, and Telegram controls |
-| API client | Sends HTTP requests to the backend |
-| FastAPI | Routes requests, validates inputs, and coordinates application services |
-| Authentication | Identifies users and protects authenticated endpoints |
-| SQLAlchemy | Relational data access |
-| Relational database | Stores users, document metadata, and related application state |
-| Ingestion service | Extracts text from supported file formats, chunks content, and initiates indexing |
-| Embedding provider | Converts text into vector representations |
-| ChromaDB | Stores vectors and supports similarity retrieval |
-| RAG service | Retrieves relevant chunks and coordinates answer generation |
-| Language model | Generates responses from the question and retrieved context |
-| Telegram router | Handles Telegram-related API endpoints and incoming webhook updates |
-| Telegram service | Handles bot operations, account-linking flow, and supported message/file delivery |
-| Telegram Bot API | Connects the JANGO backend to Telegram chats |
+  -----------------------------------------------------------------------
+  Component                           Responsibility
+  ----------------------------------- -----------------------------------
+  React + Vite                        Web interface for authentication,
+                                      documents, chat, and Telegram
+                                      controls
+
+  FastAPI                             API routing, request validation,
+                                      and service orchestration
+
+  Authentication                      User identity and protected
+                                      endpoint access
+
+  SQLAlchemy                          Relational data access
+
+  Relational database                 Users, document metadata, and
+                                      processing state
+
+  Ingestion service                   Text extraction, chunking, and
+                                      indexing workflow
+
+  Embedding provider                  Converts text into vector
+                                      representations
+
+  ChromaDB                            Vector storage and similarity
+                                      retrieval
+
+  RAG service                         Retrieves relevant chunks and
+                                      coordinates answer generation
+
+  Language model                      Generates responses using the
+                                      question and retrieved context
+
+  Telegram router/service             Account linking, webhook
+                                      processing, and supported bot
+                                      operations
+  -----------------------------------------------------------------------
 
 ## Core Workflows
 
 ### 1. Document ingestion
 
-1. An authenticated user uploads a supported file through the web frontend.
-2. FastAPI validates the request and applies the relevant access checks.
-3. The backend checks request idempotency and content deduplication where configured.
-4. The document record is created or an existing result is reused as appropriate.
-5. The ingestion service extracts text and divides it into overlapping chunks.
-6. The configured embedding provider creates vector representations.
-7. The vector-store service indexes chunks with relevant metadata.
-8. The document processing state is updated.
+1.  An authenticated user uploads a supported file.
+2.  FastAPI validates the request and checks the relevant access rules.
+3.  The backend applies request idempotency and content-deduplication
+    checks where configured.
+4.  A document record is created or an existing result is reused as
+    appropriate.
+5.  The ingestion service extracts text and divides it into chunks.
+6.  The configured embedding provider generates vector representations.
+7.  The vector-store service indexes chunks and metadata in ChromaDB.
+8.  The document processing state is updated with the outcome and
+    relevant timestamps.
 
-The configured chunking strategy is approximately 1,000 characters with 200 characters of overlap; check the active implementation for the exact behavior.
+The configured chunking strategy and limits are defined by the active
+implementation and settings.
 
 ### 2. Document question answering
 
-1. The user submits a natural-language question in the web app or through a linked Telegram account.
-2. The backend identifies the user and determines which documents that user may access.
-3. The RAG service retrieves relevant passages from the vector store.
-4. Retrieved passages are assembled into context for the language model.
-5. The configured model generates an answer.
-6. The response is returned through the originating channel, with source information where available.
+1.  The user asks a question through the web interface or linked
+    Telegram account.
+2.  The backend identifies the user and scopes access to that user's
+    documents.
+3.  The RAG service retrieves relevant passages.
+4.  Retrieved passages are assembled into context.
+5.  The configured language model generates an answer.
+6.  The response and available source information are returned through
+    the originating channel.
 
-```mermaid
-sequenceDiagram
-    actor User
-    participant Channel as Web UI or Telegram
-    participant API as FastAPI
-    participant RAG as RAG Service
-    participant DB as ChromaDB
-    participant LLM as Language Model
+### 3. Duplicate upload prevention
 
-    User->>Channel: Ask a document question
-    Channel->>API: Submit authenticated/API request
-    API->>RAG: Question and user context
-    RAG->>DB: Retrieve relevant chunks
-    DB-->>RAG: Matching passages
-    RAG->>LLM: Question plus retrieved context
-    LLM-->>RAG: Generated answer
-    RAG-->>API: Answer and available sources
-    API-->>Channel: Response
-    Channel-->>User: Display or send answer
-```
+JANGO uses two complementary mechanisms where configured:
 
-### 3. Telegram account linking
+-   **Request idempotency:** identifies a logical upload request so a
+    repeated request can reuse an earlier result.
+-   **Content deduplication:** uses SHA-256 content hashes to detect
+    identical file contents, including files with different names.
 
-1. The user opens the Telegram integration in JANGO.
-2. JANGO creates a link code through the authenticated backend flow.
-3. The user sends the supported link command and code to the JANGO Telegram bot.
-4. The backend validates the code and associates the Telegram account with the appropriate JANGO user.
-5. The web interface can query the Telegram status endpoint to show the link state.
+These mechanisms reduce duplicate work but do not, by themselves,
+guarantee atomic writes across the relational database, filesystem, and
+vector store.
 
-Link-code expiration, one-time-use behavior, and rate limits should be confirmed against the current implementation and configuration.
+### 4. Telegram account linking and webhook
 
-### 4. Telegram webhook and delivery
+1.  The authenticated web application requests a link code.
+2.  The user submits the supported command and code to the JANGO bot.
+3.  The backend validates the code and associates the Telegram account
+    with the JANGO user.
+4.  Telegram sends bot updates to the configured HTTPS webhook.
+5.  The backend verifies the configured webhook secret and delegates
+    supported operations to the Telegram service.
+6.  Supported questions use the backend's document/RAG workflow;
+    supported delivery actions use the Telegram Bot API.
 
-1. Telegram sends bot updates to the configured HTTPS webhook.
-2. The backend validates the configured webhook secret header.
-3. The Telegram router delegates supported operations to the Telegram service.
-4. For supported questions, the backend uses the configured document/RAG and AI-provider workflow.
-5. For supported delivery actions, the service sends the selected document or generated content through the Telegram Bot API.
-
-The production webhook must point to the deployed backend, not a temporary local tunnel. Do not expose the bot token or webhook secret in frontend code.
-
-### 5. Duplicate upload prevention
-
-JANGO uses two complementary concepts where implemented:
-
-- **Request idempotency:** an idempotency key identifies a logical upload request so a repeated request can reuse the prior result.
-- **Content deduplication:** SHA-256 can identify identical file contents even if filenames differ.
-
-These mechanisms address different cases. They do not by themselves guarantee atomic operations across the relational database, filesystem, and vector store.
+Check the current Telegram router and Telegram documentation for the
+exact webhook path and supported commands.
 
 ## Technology Stack
 
-| Layer | Technologies |
-|---|---|
-| Frontend | React, JavaScript, Vite, CSS |
-| Backend | Python, FastAPI, Pydantic |
-| API | REST/JSON and Telegram webhook handling |
-| Database access | SQLAlchemy |
-| Relational database | SQLite locally; production database according to deployment configuration |
-| Authentication | JWT, password hashing |
-| Document processing | PDF extraction, text chunking, background ingestion |
-| Vector database | ChromaDB |
-| Embeddings | Configurable embedding provider |
-| Language models | Configurable local or hosted providers |
-| Telegram | Telegram Bot API and HTTPS webhook |
-| Testing | pytest |
-| Frontend build | Vite |
-| Deployment configuration | Vercel, Render |
+  -----------------------------------------------------------------------
+  Layer                               Technologies
+  ----------------------------------- -----------------------------------
+  Frontend                            React, JavaScript, Vite, CSS
+
+  Backend                             Python, FastAPI, Pydantic
+
+  API                                 REST/JSON, Telegram webhooks
+
+  Database access                     SQLAlchemy
+
+  Relational database                 SQLite locally; configured
+                                      production database
+
+  Authentication                      JWT, password hashing
+
+  Document processing                 Format-aware extraction, chunking,
+                                      background ingestion
+
+  Vector database                     ChromaDB
+
+  Retrieval                           Semantic and hybrid retrieval
+                                      components
+
+  AI                                  Configurable embedding and
+                                      language-model providers
+
+  Telegram                            Telegram Bot API
+
+  Testing                             pytest
+
+  Frontend build                      Vite
+
+  Deployment configuration            Vercel, Render
+  -----------------------------------------------------------------------
 
 ## Project Structure
 
-```text
+``` text
 JANGO-System/
+├── alembic/
+│   ├── env.py
+│   └── versions/
 ├── backend/
 │   ├── app/
 │   │   ├── main.py
-│   │   ├── api/
-│   │   ├── core/
 │   │   ├── models/
 │   │   ├── routers/
-│   │   │   ├── documents.py
-│   │   │   ├── query.py
-│   │   │   ├── rag.py
-│   │   │   └── telegram.py
 │   │   ├── schemas/
 │   │   ├── services/
-│   │   │   ├── documents.py
-│   │   │   ├── ingestion.py
-│   │   │   ├── rag.py
-│   │   │   ├── telegram.py
-│   │   │   └── vector_store.py
+│   │   ├── evaluation/
 │   │   ├── db.py
 │   │   └── settings.py
-│   └── tests/
+│   ├── tests/
+│   └── .env.example
 ├── frontend/
 │   └── src/
 │       ├── components/
-│       │   └── TelegramConnectCard.jsx
 │       └── pages/
-│           ├── Chat.jsx
-│           └── Dashboard.jsx
 ├── docs/
-│   ├── TELEGRAM_BOT.md
-│   └── TELEGRAM_DOCUMENT_DELIVERY.md
+│   └── UPGRADE_AUDIT.md
 ├── tests/
-│   ├── test_telegram.py
-│   └── test_telegram_delivery.py
+│   └── test_settings_security.py
+├── ARCHITECTURE.md
+├── DEPLOYMENT.md
+├── ENVIRONMENT_VARIABLES.md
+├── TROUBLESHOOTING.md
 ├── render.yaml
 ├── requirements.txt
 └── README.md
 ```
 
-This is a representative structure; consult the repository for all modules and any paths that have changed.
+This is a representative structure. Consult the repository for all
+modules and paths.
 
 ## Local Development
 
 ### Prerequisites
 
-- Git
-- Python version supported by the repository's runtime/dependency configuration
-- Node.js and npm
-- A configured relational database
-- A configured embedding provider and language-model provider
-- For local inference, Ollama and the models required by your configuration
-- A Telegram bot token only if testing Telegram integration
+-   Git
+-   Python version supported by the repository's runtime/dependency
+    configuration
+-   Node.js and npm
+-   A configured relational database
+-   A configured embedding provider and language-model provider
+-   Ollama and required models if using local inference
+-   Telegram bot token only if testing Telegram integration
 
 ### 1. Clone the repository
 
-```bash
+``` bash
 git clone https://github.com/utkarsh-0106/JANGO-System.git
 cd JANGO-System
 ```
@@ -294,240 +361,233 @@ cd JANGO-System
 
 From the repository root:
 
-```bash
+``` bash
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-If the repository's backend dependencies are maintained separately, also inspect `backend/requirements.txt` and use the dependency file specified by the deployment configuration.
+Configure the required environment variables. For the current repository
+layout, start the backend from the project root with:
 
-Configure the environment variables described below. Then start the API using the import path appropriate for the repository layout. For the `backend/app/main.py` layout, this commonly means:
-
-```bash
-cd backend
-uvicorn app.main:app --reload
+``` bash
+python -m uvicorn app.main:app --reload --app-dir backend --port 8000
 ```
+
+If dependencies are maintained in a separate backend requirements file,
+follow the dependency configuration used by the deployment setup.
 
 ### 3. Start the frontend
 
 Open another terminal:
 
-```bash
+``` bash
 cd frontend
 npm install
 npm run dev
 ```
 
-Set the frontend API base URL to the backend address used in local development. The frontend should not contain private API keys, Telegram bot tokens, or webhook secrets.
+Configure the frontend API base URL to point to the backend address used
+in local development. Never place private API keys, Telegram bot tokens,
+or webhook secrets in frontend code.
 
-### 4. Run tests and build
+### 4. Run tests
 
-From the repository root, activate the Python environment and run the backend test suite using the project's configured pytest paths:
+From the repository root, activate the Python environment and run:
 
-```bash
-python -m pytest -q
+``` bash
+python -m pytest tests backend/tests -v
 ```
 
-Build the frontend:
+### 5. Build the frontend
 
-```bash
+``` bash
 cd frontend
 npm install
 npm run build
 ```
 
-Test results depend on the current checkout, installed dependencies, environment configuration, and available external services.
+Test and build results depend on the current checkout, installed
+dependencies, environment configuration, and external services.
 
 ## Environment Configuration
 
-Use `.env.example` as a starting point and configure the actual values in a local, ignored `.env` file or the deployment provider's environment settings. Variable names below are representative; verify them against `backend/app/settings.py`, the Telegram service, and deployment configuration in the current checkout.
+Use `.env.example` and `backend/.env.example` as references. Put real
+values in a local ignored `.env` file or in the deployment provider's
+secret/environment settings.
 
-| Variable | Purpose |
-|---|---|
-| `ENVIRONMENT` | Runtime environment |
-| `DATABASE_URL` | Relational database connection string |
-| `SECRET_KEY` | Secret used for signing/authentication, if configured by the app |
-| `ALGORITHM` | JWT signing algorithm |
-| `ACCESS_TOKEN_EXPIRE_MINUTES` | Authentication token lifetime |
-| `CORS_ORIGINS` | Allowed frontend origins |
-| `LLM_PROVIDER` | Selected language-model provider |
-| `EMBEDDING_PROVIDER` | Selected embedding provider |
-| `GEMINI_API_KEY` | Optional Gemini provider credential |
-| `GROQ_API_KEY` | Optional Groq provider credential |
-| `ANTHROPIC_API_KEY` | Optional Anthropic provider credential |
-| `OLLAMA_BASE_URL` | Ollama server URL for local inference |
-| `OLLAMA_CHAT_MODEL` | Local chat model name |
-| `OLLAMA_EMBEDDING_MODEL` | Local embedding model name |
-| `CHROMA_PERSIST_DIRECTORY` | Vector-store persistence directory |
-| `DOCUMENT_STORAGE_DIRECTORY` | Uploaded document storage directory |
-| `TELEGRAM_BOT_TOKEN` | Private token used by the backend to call the Telegram Bot API |
-| `TELEGRAM_WEBHOOK_SECRET` | Secret used to verify incoming Telegram webhook requests |
-| `VITE_API_URL` | Frontend API base URL; configure in the frontend hosting environment |
+  Variable                        Purpose
+  ------------------------------- ----------------------------------------
+  `ENVIRONMENT`                   Runtime environment
+  `DATABASE_URL`                  Relational database connection
+  `SECRET_KEY`                    Authentication/signing secret
+  `ALGORITHM`                     JWT signing algorithm
+  `ACCESS_TOKEN_EXPIRE_MINUTES`   Token lifetime
+  `CORS_ORIGINS`                  Allowed frontend origins
+  `LLM_PROVIDER`                  Selected language-model provider
+  `EMBEDDING_PROVIDER`            Selected embedding provider
+  `GEMINI_API_KEY`                Optional Gemini credential
+  `GROQ_API_KEY`                  Optional Groq credential
+  `ANTHROPIC_API_KEY`             Optional Anthropic credential
+  `OLLAMA_BASE_URL`               Ollama server URL
+  `OLLAMA_CHAT_MODEL`             Local chat model name
+  `OLLAMA_EMBEDDING_MODEL`        Local embedding model name
+  `CHROMA_PERSIST_DIRECTORY`      Vector-store persistence directory
+  `DOCUMENT_STORAGE_DIRECTORY`    Uploaded-document storage directory
+  `TELEGRAM_BOT_TOKEN`            Backend Telegram Bot API token
+  `TELEGRAM_WEBHOOK_SECRET`       Secret used to verify webhook requests
+  `VITE_API_URL`                  Frontend API base URL
 
 Important:
 
-- Keep real `.env` files out of version control.
-- Leave credentials blank or use clearly fake placeholders in `.env.example`.
-- Never put `TELEGRAM_BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`, database passwords, or server signing secrets in Vite variables or frontend source code.
-- On Vercel, configure only the frontend variables it needs, such as `VITE_API_URL`.
-- On Render, configure backend secrets through the service's environment settings.
+-   Keep real `.env` files out of version control.
+-   Use blank values or clearly fake placeholders in example files.
+-   Never put Telegram bot tokens, webhook secrets, database passwords,
+    or signing secrets in `VITE_*` variables.
+-   Configure backend secrets in the backend hosting environment.
+-   Verify variable names against `backend/app/settings.py` and the
+    active deployment configuration.
 
 ## Telegram Integration
 
-### Configure the bot
+To configure the bot:
 
-1. Create or select a Telegram bot using Telegram's official bot-management flow.
-2. Add the bot token to the backend environment as `TELEGRAM_BOT_TOKEN`.
-3. Generate a long, random webhook secret and set it as `TELEGRAM_WEBHOOK_SECRET`.
-4. Deploy the backend to an HTTPS URL.
-5. Configure Telegram's webhook to target the deployed backend's Telegram webhook route, using the secret-token header expected by the implementation.
-6. Confirm the webhook is registered and inspect backend logs for delivery or processing errors.
-7. Link a test Telegram account and test a document question and supported delivery action.
+1.  Create or select a Telegram bot.
+2.  Set `TELEGRAM_BOT_TOKEN` in the backend environment.
+3.  Generate a long random webhook secret and set
+    `TELEGRAM_WEBHOOK_SECRET`.
+4.  Deploy the backend to an HTTPS URL.
+5.  Register the Telegram webhook using the exact route and
+    secret-header format expected by the implementation.
+6.  Verify webhook status and inspect backend logs.
+7.  Link a test account and test supported Q&A and delivery workflows.
 
-The exact webhook path and supported commands should be checked in `backend/app/routers/telegram.py` and `docs/TELEGRAM_BOT.md`. Do not assume a local ngrok URL is suitable for production.
-
-### Troubleshooting
-
-- **Bot does not respond:** check the bot token, webhook URL, webhook secret, and backend logs.
-- **Webhook requests are rejected:** ensure the secret configured with Telegram matches `TELEGRAM_WEBHOOK_SECRET` exactly.
-- **Account cannot link:** check link-code generation, expiry/validation logic, and the Telegram account used for linking.
-- **Document Q&A fails:** verify document ownership, ingestion status, vector-store persistence, and the configured model/embedding provider.
-- **Delivery fails:** verify that the bot is allowed to message the target chat and that the requested file or content is available to the backend.
-- **Local works but production fails:** check the production database and file/vector persistence. Local SQLite files, uploaded PDFs, and local Chroma data do not automatically migrate to Render.
+Do not expose the bot token or webhook secret in frontend code. The
+production webhook must target the deployed backend, not a temporary
+local tunnel.
 
 ## Testing
 
-Run the tests using the repository's configured Python environment. Telegram-related tests include:
+The upgraded source copy was tested during this project update:
 
-- `tests/test_telegram.py`
-- `tests/test_telegram_delivery.py`
+-   **Backend:** 68 tests passed.
+-   **Warnings:** 34 warnings were reported.
+-   **Frontend:** Vite production build completed successfully.
 
-The wider backend suite should also be run because Telegram routes interact with user accounts, documents, AI services, and application settings. Keep tests isolated from real Telegram credentials and production data.
+These are results from the tested source copy at the time of the
+upgrade; rerun the commands above against the exact commit and
+deployment environment before release.
 
-Before a release, verify at minimum:
+Before a production release, verify:
 
-- Frontend production build succeeds.
-- Backend tests pass.
-- Unauthenticated users cannot access protected operations.
-- A linked Telegram account maps to the correct JANGO user.
-- Incoming webhook requests with invalid secrets are rejected.
-- Document retrieval and delivery respect user ownership.
-- AI-provider and Telegram API failures return safe errors and are logged appropriately.
+-   Frontend production build succeeds.
+-   Backend tests pass.
+-   Protected endpoints reject unauthenticated requests.
+-   Document retrieval and delivery respect user ownership.
+-   Invalid Telegram webhook secrets are rejected.
+-   AI-provider and Telegram API failures are handled safely.
+-   Database, uploaded-file, and vector-store persistence work as
+    expected.
 
 ## Deployment
 
-JANGO is configured for a Vercel frontend and Render backend. Confirm the actual service settings and URLs in your accounts; configuration files alone do not prove that a deployment is live or healthy.
+JANGO includes deployment configuration for a Vercel frontend and Render
+backend. Configuration files do not prove that a deployment is live or
+healthy; verify the actual service settings and deployment logs.
 
 ### Render backend
 
-Configure the backend's build/start commands and all required environment variables. At minimum, verify:
+Verify:
 
-- Correct Python version and dependency installation
-- Production `DATABASE_URL`
-- Strong authentication/signing secrets
-- CORS configuration for the deployed frontend origin
-- AI provider credentials and model settings
-- `TELEGRAM_BOT_TOKEN`
-- `TELEGRAM_WEBHOOK_SECRET`
-- Persistent storage for uploaded files and ChromaDB, or managed alternatives
-- Health checks, logs, and restart behavior
+-   Python runtime and dependency installation.
+-   Production `DATABASE_URL`.
+-   Strong authentication/signing secrets.
+-   CORS origins for the deployed frontend.
+-   AI provider credentials and model settings.
+-   Telegram bot token and webhook secret, if Telegram is enabled.
+-   Persistent storage for uploaded files and ChromaDB, or managed
+    alternatives.
+-   Health checks, logs, and restart behavior.
 
-A local SQLite file or local vector-store directory is not durable across arbitrary ephemeral deployments unless the hosting configuration provides persistent storage.
+**Background processing limitation:** document ingestion currently uses
+FastAPI in-process background tasks. Jobs are not durably queued across
+process crashes. Interrupted jobs are marked failed at startup and can
+be retried through the supported document retry endpoint. For
+multi-instance or high-volume production, use a durable worker queue
+before scaling beyond a single API instance.
+
+**Storage limitation:** a Render disk can persist document and ChromaDB
+files for a single service instance when configured. It is not shared
+storage for horizontally scaled instances. Use shared object storage and
+an appropriate shared vector-store architecture before scaling out.
 
 ### Vercel frontend
 
-Configure the correct project root and build command for the `frontend` directory. Set `VITE_API_URL` to the actual deployed backend base URL, then redeploy after changing environment variables.
+-   Configure the frontend project root and build command.
+-   Set `VITE_API_URL` to the deployed backend URL.
+-   Redeploy after changing environment variables.
+-   Do not place backend secrets in client-exposed `VITE_*` variables.
 
-Do not put backend secrets in Vercel's client-exposed `VITE_*` variables.
+## Security and Production Considerations
 
-### Production Telegram webhook
+-   Use a strong, randomly generated production signing secret.
+-   Store API keys, bot tokens, and webhook secrets only in backend
+    secret configuration.
+-   Enforce authorization on every document access and delivery path.
+-   Scope relational queries and vector retrieval to the authenticated
+    user's documents.
+-   Validate uploaded files and enforce configured upload limits.
+-   Avoid logging credentials, passwords, document contents, or
+    sensitive user data.
+-   Configure restrictive CORS origins and HTTPS endpoints.
+-   Review rate limiting, provider timeouts, retry behavior, and error
+    logging.
+-   Confirm database, uploaded-file, and vector-store persistence before
+    relying on production deployments.
+-   Test account linking, webhook authentication, and user isolation
+    before public release.
 
-After the backend is deployed:
+Security properties must be verified against the implementation and
+tests. This README is not a substitute for a security audit.
 
-1. Use the production HTTPS backend URL and the exact webhook route defined in the code.
-2. Register the webhook with the same secret configured in Render.
-3. Check Telegram's webhook status for errors.
-4. Link a test account and verify question answering and delivery end to end.
+## Known Limitations
 
-## Security and Production Checklist
+-   Scanned/image-only PDFs require OCR; OCR is not included in the
+    documented ingestion workflow.
+-   Legacy binary Word `.doc` and PowerPoint `.ppt` formats are not
+    supported.
+-   Macro-enabled Office files are not supported.
+-   Spreadsheet files are indexed as textual content; formula
+    recalculation and exact spreadsheet computation are not provided.
+-   Image understanding is not part of the documented document-ingestion
+    workflow.
+-   In-process background tasks are not durable across process crashes.
+-   Local SQLite, uploaded files, and local ChromaDB data do not
+    automatically migrate to a hosted environment.
+-   A single-instance persistent disk is not shared storage for multiple
+    backend instances.
+-   Database, filesystem, and vector-store writes are not guaranteed to
+    be one atomic transaction.
 
-- Use a strong, randomly generated production signing secret.
-- Store bot tokens, API keys, and webhook secrets only in backend secret configuration.
-- Enforce authorization on every document access and delivery path.
-- Keep relational queries and vector retrieval scoped to the authenticated user's documents.
-- Validate uploaded files and enforce upload limits.
-- Avoid logging tokens, passwords, document contents, or sensitive user data.
-- Configure appropriate CORS origins and HTTPS endpoints.
-- Handle rate limiting, provider timeouts, Telegram API errors, and retry behavior safely.
-- Confirm database, uploaded-file, and vector-store persistence before relying on production deployments.
-- Test account linking, webhook authentication, and user isolation before public release.
+Confirm the exact accepted extensions, file-size limits, and provider
+behavior against the current code and environment configuration.
 
-Security properties should be verified against the implementation and tests; this README is not a substitute for a security audit.
+## Documentation
 
-## Engineering Trade-offs
-
-### Why RAG?
-
-RAG retrieves passages related to a question before generation. This helps constrain the model's context to information found in the user's documents and can provide source references where supported.
-
-### Why use both relational and vector storage?
-
-Relational storage handles structured records such as users, document metadata, ownership, and processing state. ChromaDB supports vector similarity search over embedded text chunks.
-
-### Why integrate Telegram?
-
-Telegram provides an additional interaction and delivery channel. The backend remains responsible for account mapping, authorization, retrieval, AI orchestration, and sending supported responses; the bot should not bypass JANGO's ownership checks.
-
-### Why use idempotency and content hashes?
-
-Request idempotency handles repeated logical requests, while SHA-256 supports detection of repeated file contents. These mechanisms help reduce duplicate work but do not make cross-system writes fully atomic.
-
-## Future Improvements
-
-Potential next steps include:
-
-- Hybrid lexical and semantic retrieval, if not already implemented in the current branch
-- Retrieval evaluation and reranking
-- Durable background jobs and ingestion recovery
-- Stronger transaction/concurrency guarantees across metadata and vector indexing
-- Rate limiting and structured observability
-- Expanded integration tests for Telegram, AI-provider failures, and file delivery
-- Image optimization and frontend loading performance improvements
-
-These are suggested improvements, not claims that each capability is currently implemented.
+-   [Architecture](ARCHITECTURE.md)
+-   [Deployment Guide](DEPLOYMENT.md)
+-   [Environment Variables](ENVIRONMENT_VARIABLES.md)
+-   [Troubleshooting](TROUBLESHOOTING.md)
+-   [Upgrade Audit](docs/UPGRADE_AUDIT.md)
 
 ## Author
 
 **Utkarsh Maheshwari**
 
-- GitHub: [utkarsh-0106](https://github.com/utkarsh-0106)
-- Repository: [JANGO-System](https://github.com/utkarsh-0106/JANGO-System)
+-   GitHub: https://github.com/utkarsh-0106
+-   Repository: https://github.com/utkarsh-0106/JANGO-System
 
----
+------------------------------------------------------------------------
 
-**JANGO — Enterprise Document Intelligence Platform**
-
-## Multi-format document ingestion
-
-JANGO accepts common document and data formats up to the configured 10 MB per-file limit:
-
-- **PDF** — text-based PDFs with page metadata (scanned/image-only PDFs need OCR, which is not included).
-- **Word** — DOCX paragraphs and tables; ODT text documents.
-- **Presentations** — PPTX slide text and tables.
-- **Spreadsheets** — CSV, XLSX, and legacy XLS; sheet/row metadata is retained. XLSX reads cached values and does not recalculate formulas.
-- **Plain text and markup** — TXT, Markdown, LOG, RTF, HTML/HTM, XML, YAML/YML, and JSON.
-
-The backend validates the extension and parses supported structured containers before storing a file. A background ingestion task extracts text, records source metadata (such as PDF page, presentation slide, spreadsheet sheet/row, or document section), chunks the text, and indexes it in ChromaDB. The existing RAG retrieval pipeline and per-user vector filtering are reused, so supported formats can be queried from the web chat and Telegram bot without separate Q&A implementations.
-
-**Important limitations:** Legacy binary Word `.doc`, PowerPoint `.ppt`, macro-enabled office files, scanned-PDF OCR, image understanding, spreadsheet formula recalculation, and exact spreadsheet computation are not supported. CSV/XLS/XLSX are indexed as textual rows for retrieval; for exact totals or complex calculations, verify results against the source data. Install the dependencies from `requirements.txt` after updating the project.
-
-
-## JANGO reliability and deployment notes
-
-See [ARCHITECTURE.md](ARCHITECTURE.md), [DEPLOYMENT.md](DEPLOYMENT.md), [ENVIRONMENT_VARIABLES.md](ENVIRONMENT_VARIABLES.md), and [TROUBLESHOOTING.md](TROUBLESHOOTING.md) for the current operational model.
-
-Document ingestion currently uses FastAPI in-process background tasks. Jobs are not durably queued across process crashes; interrupted jobs are marked failed at startup and can be retried from `POST /api/documents/{document_id}/retry`. For multi-instance or high-volume production, deploy a durable Redis-backed worker queue before scaling beyond one API instance.
-
-The Render disk persists document and Chroma files across restarts for a single service instance. It is not shared storage for horizontally scaled instances. Use shared object storage and a vector service designed for multi-instance access before scaling out.
+**JANGO --- Enterprise Document Intelligence Platform**
