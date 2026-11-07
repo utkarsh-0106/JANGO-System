@@ -522,3 +522,12 @@ JANGO accepts common document and data formats up to the configured 10 MB per-fi
 The backend validates the extension and parses supported structured containers before storing a file. A background ingestion task extracts text, records source metadata (such as PDF page, presentation slide, spreadsheet sheet/row, or document section), chunks the text, and indexes it in ChromaDB. The existing RAG retrieval pipeline and per-user vector filtering are reused, so supported formats can be queried from the web chat and Telegram bot without separate Q&A implementations.
 
 **Important limitations:** Legacy binary Word `.doc`, PowerPoint `.ppt`, macro-enabled office files, scanned-PDF OCR, image understanding, spreadsheet formula recalculation, and exact spreadsheet computation are not supported. CSV/XLS/XLSX are indexed as textual rows for retrieval; for exact totals or complex calculations, verify results against the source data. Install the dependencies from `requirements.txt` after updating the project.
+
+
+## JANGO reliability and deployment notes
+
+See [ARCHITECTURE.md](ARCHITECTURE.md), [DEPLOYMENT.md](DEPLOYMENT.md), [ENVIRONMENT_VARIABLES.md](ENVIRONMENT_VARIABLES.md), and [TROUBLESHOOTING.md](TROUBLESHOOTING.md) for the current operational model.
+
+Document ingestion currently uses FastAPI in-process background tasks. Jobs are not durably queued across process crashes; interrupted jobs are marked failed at startup and can be retried from `POST /api/documents/{document_id}/retry`. For multi-instance or high-volume production, deploy a durable Redis-backed worker queue before scaling beyond one API instance.
+
+The Render disk persists document and Chroma files across restarts for a single service instance. It is not shared storage for horizontally scaled instances. Use shared object storage and a vector service designed for multi-instance access before scaling out.

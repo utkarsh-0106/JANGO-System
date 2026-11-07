@@ -63,6 +63,19 @@ def get_embeddings():
     return _get_embeddings()
 
 
+def embedding_identity() -> tuple[str, str]:
+    """Stable identity for the vector space used by both indexing and queries."""
+    provider = normalize_provider(settings.EMBEDDING_PROVIDER)
+    model = {
+        "gemini": settings.GEMINI_EMBEDDING_MODEL,
+        "ollama": settings.OLLAMA_EMBEDDING_MODEL,
+        "chroma": "chroma-default",
+    }.get(provider)
+    if not model:
+        raise AIProviderConfigError(f"Unsupported EMBEDDING_PROVIDER '{provider}'")
+    return provider, model
+
+
 @lru_cache(maxsize=1)
 def get_vector_store() -> Chroma:
     persist_path = Path(settings.CHROMA_PERSIST_DIRECTORY).resolve()
@@ -92,7 +105,13 @@ def delete_document_vectors(document_id: int) -> None:
 
 
 def similarity_search(query: str, user_id: int, k: int = 5):
+    provider, model = embedding_identity()
+    # Fail closed across embedding-space changes. Legacy vectors without these
+    # fields are intentionally not compared with the active query embedding.
+    where = {"$and": [
+        {"user_id": int(user_id)},
+        {"embedding_provider": provider},
+        {"embedding_model": model},
+    ]}
     with _CHROMA_LOCK:
-        return get_vector_store().similarity_search_with_score(
-            query, k=k, filter={"user_id": int(user_id)}
-        )
+        return get_vector_store().similarity_search_with_score(query, k=k, filter=where)

@@ -30,6 +30,11 @@ class Document(Base):
     # SHA-256 of the exact uploaded bytes; unique per user to prevent duplicate PDFs.
     content_sha256 = Column(String(64), nullable=True)
 
+    processing_error = Column(Text, nullable=True)
+    processing_started_at = Column(DateTime, nullable=True)
+    processed_at = Column(DateTime, nullable=True)
+    ingestion_attempts = Column(Integer, nullable=False, default=0, server_default="0")
+
     status = Column(
         String(50),
         nullable=False,

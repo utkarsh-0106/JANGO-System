@@ -2,6 +2,7 @@ from pathlib import Path
 import re
 import uuid
 import hashlib
+import logging
 from typing import List
 
 from fastapi import (
@@ -37,13 +38,15 @@ from ..services.ingestion import ingest_document
 from ..settings import settings
 
 
+logger = logging.getLogger("jango.documents")
+
 router = APIRouter(
     prefix="/api/documents",
     tags=["documents"],
 )
 
 STORAGE_DIR = Path(settings.DOCUMENT_STORAGE_DIRECTORY)
-MAX_FILE_SIZE = 10 * 1024 * 1024
+MAX_FILE_SIZE = settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024
 ALLOWED_EXTENSIONS = {".pdf", ".docx", ".pptx", ".odt", ".txt", ".md", ".log", ".rtf", ".csv", ".xlsx", ".xls", ".json", ".yaml", ".yml", ".xml", ".html", ".htm"}
 CONTENT_TYPES = {
     ".pdf": "application/pdf",
@@ -91,10 +94,7 @@ def ingest_document_background(
             user_id=user_id,
         )
     except Exception as exc:
-        print(
-            f"Background ingestion failed for document "
-            f"{document_id}: {exc}"
-        )
+        logger.error("background_ingestion_failed document_id=%s user_id=%s error_type=%s", document_id, user_id, type(exc).__name__)
     finally:
         db.close()
 
@@ -141,7 +141,9 @@ async def upload_document(
             detail="Unsupported file type. Supported formats: PDF, DOCX, PPTX, ODT, TXT, MD, LOG, RTF, CSV, XLSX, XLS, JSON, YAML, XML, and HTML.",
         )
 
-    content = await file.read()
+    # Read at most the configured limit plus one byte. This bounds memory use
+    # even when a client streams a much larger body.
+    content = await file.read(MAX_FILE_SIZE + 1)
 
     if not content:
         raise HTTPException(
@@ -152,8 +154,20 @@ async def upload_document(
     if len(content) > MAX_FILE_SIZE:
         raise HTTPException(
             status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-            detail="File size exceeds maximum limit of 10 MB",
+            detail=f"File size exceeds maximum limit of {settings.MAX_UPLOAD_SIZE_MB} MB",
         )
+
+    # Cheap magic-byte checks prevent extension-only spoofing for binary formats.
+    signatures = {
+        ".pdf": lambda b: b.startswith(b"%PDF-"),
+        ".docx": lambda b: b.startswith(b"PK\x03\x04"),
+        ".pptx": lambda b: b.startswith(b"PK\x03\x04"),
+        ".xlsx": lambda b: b.startswith(b"PK\x03\x04"),
+        ".odt": lambda b: b.startswith(b"PK\x03\x04"),
+        ".xls": lambda b: b.startswith(bytes.fromhex("D0CF11E0A1B11AE1")),
+    }
+    if extension in signatures and not signatures[extension](content):
+        raise HTTPException(status_code=400, detail=f"File signature does not match {extension.lstrip('.').upper()} format")
 
     # Hash the exact bytes. Identical content gets the same hash regardless of filename.
     content_sha256 = hashlib.sha256(content).hexdigest()
@@ -179,7 +193,8 @@ async def upload_document(
             reader = PdfReader(BytesIO(content))
             if reader.is_encrypted:
                 raise HTTPException(status_code=400, detail="Encrypted PDFs are not supported")
-            len(reader.pages)
+            if len(reader.pages) > settings.MAX_PDF_PAGES:
+                raise HTTPException(status_code=413, detail=f"PDF exceeds the {settings.MAX_PDF_PAGES}-page limit")
         elif extension == ".docx":
             from docx import Document as DocxDocument
             DocxDocument(BytesIO(content))
@@ -343,6 +358,26 @@ def get_document_status_route(
     )
 
 
+
+
+@router.post("/{document_id}/retry", response_model=DocumentResponse)
+def retry_document_ingestion(
+    document_id: int,
+    background_tasks: BackgroundTasks,
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    document = get_document(db, document_id, current_user.id)
+    if document.status == "processing":
+        raise HTTPException(status_code=409, detail="Document is already processing")
+    document.status = "uploaded"
+    document.processing_error = None
+    db.commit()
+    db.refresh(document)
+    background_tasks.add_task(ingest_document_background, document.id, current_user.id)
+    return document
+
+
 @router.get(
     "/{document_id}/file",
     response_class=FileResponse,
@@ -397,15 +432,10 @@ def delete_document_route(
             detail="Document not found",
         )
 
-    file_path = Path(document.file_path)
-
     result = delete_document(
         db,
         document_id,
         current_user.id,
     )
-
-    if file_path.exists():
-        file_path.unlink()
 
     return result

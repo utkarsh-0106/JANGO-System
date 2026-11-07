@@ -1,4 +1,5 @@
 from contextlib import asynccontextmanager
+from datetime import datetime, timedelta
 import logging
 import re
 import time
@@ -58,6 +59,14 @@ async def lifespan(_: FastAPI):
                 connection.execute(text(
                     "ALTER TABLE documents ADD COLUMN content_sha256 VARCHAR(64)"
                 ))
+            if "processing_error" not in columns:
+                connection.execute(text("ALTER TABLE documents ADD COLUMN processing_error TEXT"))
+            if "processing_started_at" not in columns:
+                connection.execute(text("ALTER TABLE documents ADD COLUMN processing_started_at TIMESTAMP"))
+            if "processed_at" not in columns:
+                connection.execute(text("ALTER TABLE documents ADD COLUMN processed_at TIMESTAMP"))
+            if "ingestion_attempts" not in columns:
+                connection.execute(text("ALTER TABLE documents ADD COLUMN ingestion_attempts INTEGER NOT NULL DEFAULT 0"))
 
         # Backfill hashes for existing documents without changing/deleting records.
         # If legacy duplicates exist, keep the hash on the oldest record only; this
@@ -101,11 +110,21 @@ async def lifespan(_: FastAPI):
                 "CREATE UNIQUE INDEX IF NOT EXISTS uq_documents_user_content_sha256 "
                 "ON documents (user_id, content_sha256)"
             ))
+    # In-process FastAPI background tasks are not durable. Never leave jobs
+    # showing as active forever after a process restart; mark stale work failed
+    # so the owner can explicitly retry it.
+    if "documents" in inspect(engine).get_table_names():
+        cutoff = datetime.utcnow() - timedelta(minutes=15)
+        with engine.begin() as connection:
+            connection.execute(text(
+                "UPDATE documents SET status='failed', processing_error='Interrupted by server restart' "
+                "WHERE status='processing' AND (processing_started_at IS NULL OR processing_started_at < :cutoff)"
+            ), {"cutoff": cutoff})
     yield
 
 app = FastAPI(
     title="Enterprise Document RAG Knowledge Base",
-    version="1.0.0",
+    version="2.0.0",
     lifespan=lifespan,
 )
 
@@ -146,7 +165,25 @@ async def request_observability(request, call_next):
 
 @app.get("/api/health")
 async def health_check():
+    """Liveness: the ASGI process is running."""
     return {"status": "healthy"}
+
+
+@app.get("/api/ready")
+async def readiness_check():
+    """Readiness: verify the SQL database and configured local storage paths."""
+    from pathlib import Path
+    from sqlalchemy import text as sql_text
+    try:
+        with engine.connect() as connection:
+            connection.execute(sql_text("SELECT 1"))
+        Path(settings.DOCUMENT_STORAGE_DIRECTORY).mkdir(parents=True, exist_ok=True)
+        Path(settings.CHROMA_PERSIST_DIRECTORY).mkdir(parents=True, exist_ok=True)
+        return {"status": "ready", "database": "connected", "storage": "configured"}
+    except Exception as exc:
+        logger.error("readiness_check_failed error_type=%s", type(exc).__name__)
+        from fastapi import HTTPException
+        raise HTTPException(status_code=503, detail="Service dependencies are not ready") from exc
 
 
 app.include_router(auth_router)

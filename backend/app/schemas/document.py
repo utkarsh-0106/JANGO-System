@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from datetime import datetime
 from typing import Optional, List
 
@@ -10,10 +10,16 @@ class DocumentCreate(BaseModel):
     status: str
 
 class DocumentResponse(DocumentCreate):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     user_id: int
     created_at: datetime
     updated_at: datetime
+    processing_error: Optional[str] = None
+    processing_started_at: Optional[datetime] = None
+    processed_at: Optional[datetime] = None
+    ingestion_attempts: int = 0
 
 class DocumentStatusResponse(BaseModel):
     status: str

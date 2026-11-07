@@ -20,6 +20,17 @@ def recall_at_k(ranked_ids: Sequence[str], relevant_ids: Iterable[str], k: int =
     return len(set(ranked_ids[:k]) & relevant) / len(relevant)
 
 
+def precision_at_k(ranked_ids: Sequence[str], relevant_ids: Iterable[str], k: int = 5) -> float:
+    """Fraction of the first k returned results that are relevant."""
+    if k <= 0:
+        return 0.0
+    ranked = list(ranked_ids[:k])
+    if not ranked:
+        return 0.0
+    relevant = set(relevant_ids)
+    return len(set(ranked) & relevant) / len(ranked)
+
+
 def reciprocal_rank(ranked_ids: Sequence[str], relevant_ids: Iterable[str]) -> float:
     """Reciprocal rank of the first relevant result, or zero if absent."""
     relevant = set(relevant_ids)
@@ -52,6 +63,7 @@ def evaluate_retrieval(
     relevant = list(set(relevant_ids))
     return {
         f"recall@{k}": round(recall_at_k(ranked_ids, relevant, k), 6),
+        f"precision@{k}": round(precision_at_k(ranked_ids, relevant, k), 6),
         "mrr": round(reciprocal_rank(ranked_ids, relevant), 6),
         f"ndcg@{k}": round(ndcg_at_k(ranked_ids, relevant, k), 6),
     }

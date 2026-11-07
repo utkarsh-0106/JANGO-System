@@ -96,17 +96,16 @@ def test_ingestion_rejects_missing_file(tmp_path):
     assert exc.value.status_code == 404
     assert document.status == "failed"
 
-
-def test_ingestion_rejects_non_pdf(tmp_path):
-    non_pdf = tmp_path / "test.txt"
-    non_pdf.write_text("This is not a PDF.")
+def test_ingestion_rejects_unsupported_format(tmp_path):
+    unsupported = tmp_path / "test.unsupported"
+    unsupported.write_text("This is an unsupported file.")
 
     document = MagicMock()
     document.id = 123
     document.user_id = 7
-    document.filename = "test.txt"
-    document.file_path = str(non_pdf)
-    document.content_type = "text/plain"
+    document.filename = "test.unsupported"
+    document.file_path = str(unsupported)
+    document.content_type = "application/octet-stream"
 
     db = MagicMock()
 
@@ -124,6 +123,7 @@ def test_ingestion_rejects_non_pdf(tmp_path):
 
     assert exc.value.status_code == 400
     assert document.status == "failed"
+    assert "Unsupported file format" in document.processing_error
 
 def test_vector_store_add_chunks():
     fake_store = MagicMock()
@@ -165,21 +165,18 @@ def test_similarity_search_enforces_user_filter():
     fake_store = MagicMock()
     fake_store.similarity_search_with_score.return_value = []
 
-    with patch.object(
-        vector_store,
-        "get_vector_store",
-        return_value=fake_store,
+    with (
+        patch.object(vector_store, "get_vector_store", return_value=fake_store),
+        patch.object(vector_store, "embedding_identity", return_value=("gemini", "embedding-v2")),
     ):
-        vector_store.similarity_search(
-            query="company policy",
-            user_id=42,
-            k=5,
-        )
+        vector_store.similarity_search(query="company policy", user_id=42, k=5)
 
     fake_store.similarity_search_with_score.assert_called_once_with(
-        "company policy",
-        k=5,
-        filter={"user_id": 42},
+        "company policy", k=5, filter={"$and": [
+            {"user_id": 42},
+            {"embedding_provider": "gemini"},
+            {"embedding_model": "embedding-v2"},
+        ]},
     )
 
 

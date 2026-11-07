@@ -68,6 +68,16 @@ export default function Dashboard() {
 
   useEffect(() => {
     fetchDocuments();
+    // Keep background ingestion state visible without requiring manual refresh.
+    const pollId = window.setInterval(async () => {
+      try {
+        const response = await api.get("/api/documents/");
+        setDocuments(response.data);
+      } catch {
+        // Keep the last known document state; explicit refresh surfaces errors.
+      }
+    }, 7000);
+    return () => window.clearInterval(pollId);
   }, []);
 
   async function handleUpload(event) {
@@ -151,6 +161,18 @@ export default function Dashboard() {
       setError(err.response?.data?.detail || "Unable to send this document to Telegram.");
     } finally {
       setSendingTelegramId(null);
+    }
+  }
+
+  async function handleRetry(document) {
+    setError("");
+    setSuccess("");
+    try {
+      await api.post(`/api/documents/${document.id}/retry`);
+      setSuccess(`Reprocessing started for ${document.filename}.`);
+      await fetchDocuments();
+    } catch (err) {
+      setError(err.response?.data?.detail || "Unable to retry document processing.");
     }
   }
 
@@ -382,6 +404,9 @@ export default function Dashboard() {
                             <strong>{document.filename}</strong>
                             <small>
                               Document #{document.id}
+                              {document.status === "failed" && document.processing_error
+                                ? ` · ${document.processing_error}`
+                                : ""}
                             </small>
                           </div>
                         </div>
@@ -403,6 +428,15 @@ export default function Dashboard() {
                       </td>
 
                       <td className="actions-cell">
+                        {document.status === "failed" && (
+                          <button
+                            className="refresh-button"
+                            onClick={() => handleRetry(document)}
+                            title="Retry document processing"
+                          >
+                            Retry
+                          </button>
+                        )}
                         <button
                           className="delete-button"
                           onClick={() =>

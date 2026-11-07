@@ -77,18 +77,28 @@ def delete_document(
 ) -> bool:
     document = get_document(db, document_id, user_id)
 
-    # Remove the document's vectors from ChromaDB first.
+    # DELETING is persisted first because the SQL row, file and Chroma vectors
+    # cannot participate in one distributed transaction. Keep the row if any
+    # compensating cleanup fails so an operator can reconcile it.
+    document.status = "deleting"
+    db.commit()
     try:
         from backend.app.services.vector_store import delete_document_vectors
         delete_document_vectors(document.id)
+        path = Path(document.file_path)
+        if path.is_file():
+            path.unlink()
+        db.delete(document)
+        db.commit()
+        return True
     except Exception:
-        # Do not delete the database record if vector cleanup fails.
+        db.rollback()
+        retained = db.query(Document).filter(Document.id == document_id, Document.user_id == user_id).first()
+        if retained:
+            retained.status = "failed"
+            retained.processing_error = "Deletion did not complete; retry or reconcile storage"
+            db.commit()
         raise
-
-    db.delete(document)
-    db.commit()
-
-    return True
 
 
 def get_document_status(

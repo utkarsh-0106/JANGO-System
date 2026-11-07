@@ -5,6 +5,8 @@ import json
 import xml.etree.ElementTree as ET
 from html.parser import HTMLParser
 from pathlib import Path
+from datetime import datetime
+import logging
 from typing import Any
 
 from fastapi import HTTPException, status
@@ -15,10 +17,31 @@ from sqlalchemy.orm import Session
 from backend.app.db import SessionLocal
 from backend.app.models import Document
 from backend.app.services.documents import get_document
-from backend.app.services.vector_store import add_chunks, delete_document_vectors
+from backend.app.services.vector_store import add_chunks, delete_document_vectors, embedding_identity
+from backend.app.settings import settings
 
 CHUNK_SIZE = 1000
 CHUNK_OVERLAP = 200
+logger = logging.getLogger("jango.ingestion")
+SUPPORTED_EXTENSIONS = {
+    ".pdf",
+    ".docx",
+    ".txt",
+    ".md",
+    ".log",
+    ".rtf",
+    ".yaml",
+    ".yml",
+    ".xml",
+    ".odt",
+    ".html",
+    ".htm",
+    ".json",
+    ".csv",
+    ".xls",
+    ".xlsx",
+    ".pptx",
+}
 
 
 class _HTMLTextExtractor(HTMLParser):
@@ -183,47 +206,89 @@ def _load_text(file_path: Path, extension: str) -> list[tuple[str, dict[str, Any
 
 
 def ingest_document(document_id: int, db: Session, user_id: int) -> bool:
+    """Idempotently ingest one document with compensating vector cleanup.
+
+    SQL and Chroma cannot share an atomic transaction. We therefore mark the
+    row processing first, replace its vector set, and on any failure remove
+    partial vectors and persist a retryable failed state.
+    """
     document = get_document(db, document_id, user_id)
     if not document:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
     file_path = Path(document.file_path)
-    if not file_path.exists():
+    if not file_path.is_file():
         document.status = "failed"
+        document.processing_error = "Stored document file is missing"
         db.commit()
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document file not found")
 
-    try:
-        document.status = "processing"
+    extension = Path(document.filename).suffix.lower()
+
+    if extension not in SUPPORTED_EXTENSIONS:
+        document.status = "failed"
+        document.processing_error = f"Unsupported file format: {extension or 'unknown'}"
         db.commit()
-        delete_document_vectors(document.id)
+
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Unsupported document format."
+        )
+
+    document.status = "processing"
+    document.processing_error = None
+    document.processing_started_at = datetime.utcnow()
+    document.ingestion_attempts = (document.ingestion_attempts or 0) + 1
+    db.commit()
+    try:
         extension = Path(document.filename).suffix.lower()
         units = _load_text(file_path, extension)
         splitter = RecursiveCharacterTextSplitter(chunk_size=CHUNK_SIZE, chunk_overlap=CHUNK_OVERLAP)
         chunks: list[LangChainDocument] = []
-        for text, source_metadata in units:
-            text = text.strip()
-            if not text:
+        embedding_provider, embedding_model = embedding_identity()
+        for text_content, source_metadata in units:
+            text_content = text_content.strip()
+            if not text_content:
                 continue
-            for chunk in splitter.split_text(text):
+            for chunk in splitter.split_text(text_content):
                 chunks.append(LangChainDocument(page_content=chunk, metadata={
                     "document_id": int(document.id), "user_id": int(document.user_id),
-                    "filename": document.filename, **source_metadata,
+                    "filename": document.filename,
+                    "embedding_provider": embedding_provider,
+                    "embedding_model": embedding_model,
+                    **source_metadata,
                 }))
+                if len(chunks) > settings.MAX_INGESTION_CHUNKS:
+                    raise ValueError(f"Document exceeds the {settings.MAX_INGESTION_CHUNKS}-chunk ingestion limit")
         if not chunks:
             raise ValueError("No extractable text was found in this file")
+
+        # Replace old vectors only after extraction and validation have succeeded.
+        delete_document_vectors(document.id)
         add_chunks(chunks)
         document.status = "ready"
+        document.processing_error = None
+        document.processed_at = datetime.utcnow()
         db.commit()
         db.refresh(document)
+        logger.info("document_ingested document_id=%s user_id=%s chunks=%s attempt=%s", document.id, user_id, len(chunks), document.ingestion_attempts)
         return True
-    except HTTPException:
-        document.status = "failed"
-        db.commit()
-        raise
     except Exception as exc:
-        document.status = "failed"
-        db.commit()
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Document ingestion failed: {exc}") from exc
+        db.rollback()
+        # Compensate for partially written vectors. If cleanup itself fails, log
+        # only exception types; the reconciliation documentation covers repair.
+        try:
+            delete_document_vectors(document_id)
+        except Exception as cleanup_exc:
+            logger.error("vector_cleanup_failed document_id=%s error_type=%s", document_id, type(cleanup_exc).__name__)
+        failed = db.query(Document).filter(Document.id == document_id, Document.user_id == user_id).first()
+        if failed:
+            failed.status = "failed"
+            failed.processing_error = f"{type(exc).__name__}: document processing failed"[:1000]
+            db.commit()
+        logger.exception("document_ingestion_failed document_id=%s user_id=%s error_type=%s", document_id, user_id, type(exc).__name__)
+        if isinstance(exc, HTTPException):
+            raise
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Document ingestion failed. You can retry processing.") from exc
 
 
 def reprocess_document(document_id: int, db: Session, user_id: int) -> bool:

@@ -10,6 +10,14 @@ class Settings(BaseSettings):
     SECRET_KEY: str | None = None
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+    DB_POOL_SIZE: int = 5
+    DB_MAX_OVERFLOW: int = 5
+    MAX_UPLOAD_SIZE_MB: int = 10
+    MAX_PDF_PAGES: int = 500
+    MAX_INGESTION_CHUNKS: int = 20000
+    AI_REQUEST_TIMEOUT_SECONDS: float = 45.0
+    AI_MAX_ATTEMPTS: int = 2
+    AI_RETRY_BASE_SECONDS: float = 1.0
 
     # Telegram integration is disabled until a bot token is configured.
     TELEGRAM_BOT_TOKEN: str | None = None
@@ -41,9 +49,6 @@ class Settings(BaseSettings):
     # Comma-separated providers used only when the primary provider is
     # temporarily unavailable. Providers without an API key are skipped.
     LLM_FALLBACK_PROVIDERS: str = "groq,claude"
-    AI_MAX_ATTEMPTS: int = 2
-    AI_RETRY_BASE_SECONDS: float = 1.0
-
     AI_INPUT_COST_PER_1M_USD: float = 0.0
     AI_OUTPUT_COST_PER_1M_USD: float = 0.0
 
@@ -51,7 +56,7 @@ class Settings(BaseSettings):
     DOCUMENT_STORAGE_DIRECTORY: str = "./storage/documents"
 
     model_config = ConfigDict(
-	env_file="backend/.env",
+	env_file=".env",
         env_file_encoding="utf-8",
         extra="ignore",
     )
@@ -67,13 +72,27 @@ class Settings(BaseSettings):
     @model_validator(mode="after")
     def validate_runtime_configuration(self):
         production = self.ENVIRONMENT.lower() == "production"
+        if production and self.DATABASE_URL.startswith("sqlite"):
+            raise ValueError("DATABASE_URL must point to PostgreSQL in production; refusing an ephemeral SQLite fallback")
+        if self.MAX_UPLOAD_SIZE_MB < 1 or self.MAX_UPLOAD_SIZE_MB > 100:
+            raise ValueError("MAX_UPLOAD_SIZE_MB must be between 1 and 100")
+        if self.DB_POOL_SIZE < 1 or self.DB_MAX_OVERFLOW < 0:
+            raise ValueError("Database pool settings are invalid")
 
-        if self.SECRET_KEY in (None, "", "your-secret-key-here"):
+        placeholder_secrets = {
+            "your-secret-key-here",
+            "change-me-for-local-development",
+            "changeme",
+            "secret",
+        }
+        if self.SECRET_KEY is None or not self.SECRET_KEY.strip() or self.SECRET_KEY.strip().lower() in placeholder_secrets:
             if production:
-                raise ValueError(
-                    "SECRET_KEY must be set to a non-placeholder value in production"
-                )
+                raise ValueError("SECRET_KEY must be set to a strong non-placeholder value in production")
             self.SECRET_KEY = secrets.token_urlsafe(32)
+        elif production and len(self.SECRET_KEY) < 32:
+            raise ValueError("SECRET_KEY must be at least 32 characters in production")
+        if production and (not self.CORS_ORIGINS.strip() or "*" in self.cors_origin_list):
+            raise ValueError("CORS_ORIGINS must contain explicit trusted origins in production")
 
         # Render cannot reach the developer's Mac-local Ollama service.
         # If an old Render environment variable still says "ollama", use the

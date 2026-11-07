@@ -4,8 +4,8 @@ services:
     runtime: python
     plan: 0.5c-1g
     buildCommand: pip install -r requirements.txt
-    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
-    healthCheckPath: /api/health
+    startCommand: alembic upgrade head && uvicorn main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/ready
     disk:
       name: jango-data
       mountPath: /var/data
@@ -23,6 +23,16 @@ services:
         value: HS256
       - key: ACCESS_TOKEN_EXPIRE_MINUTES
         value: "60"
+      - key: DB_POOL_SIZE
+        value: "5"
+      - key: DB_MAX_OVERFLOW
+        value: "5"
+      - key: MAX_UPLOAD_SIZE_MB
+        value: "10"
+      - key: MAX_PDF_PAGES
+        value: "500"
+      - key: MAX_INGESTION_CHUNKS
+        value: "20000"
       - key: LLM_PROVIDER
         value: gemini
       - key: EMBEDDING_PROVIDER

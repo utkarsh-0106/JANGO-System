@@ -3,6 +3,7 @@ import pytest
 from backend.app.evaluation.retrieval_metrics import (
     evaluate_retrieval,
     ndcg_at_k,
+    precision_at_k,
     recall_at_k,
     reciprocal_rank,
 )
@@ -10,6 +11,11 @@ from backend.app.evaluation.retrieval_metrics import (
 
 def test_recall_at_k_counts_relevant_items_in_top_k():
     assert recall_at_k(["a", "b", "c"], {"b", "c", "d"}, k=2) == pytest.approx(1 / 3)
+
+
+def test_precision_at_k_counts_relevant_returned_results():
+    assert precision_at_k(["a", "b", "noise"], {"a", "b"}, k=3) == pytest.approx(2 / 3)
+    assert precision_at_k(["a"], {"a"}, k=0) == 0.0
 
 
 def test_reciprocal_rank_uses_first_relevant_position():
@@ -28,4 +34,4 @@ def test_empty_relevance_and_nonpositive_k_are_safe():
 
 def test_evaluation_returns_expected_metric_names():
     result = evaluate_retrieval(["irrelevant", "answer"], {"answer"}, k=2)
-    assert result == {"recall@2": 1.0, "mrr": 0.5, "ndcg@2": pytest.approx(0.63093)}
+    assert result == {"recall@2": 1.0, "precision@2": 0.5, "mrr": 0.5, "ndcg@2": pytest.approx(0.63093)}

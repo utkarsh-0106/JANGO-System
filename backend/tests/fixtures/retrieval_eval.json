@@ -1,0 +1,8 @@
+{
+  "description": "Synthetic, privacy-safe retrieval benchmark fixture. IDs are example chunk identifiers, not user documents.",
+  "queries": [
+    {"query": "What is the employee leave policy?", "ranked_ids": ["leave-02", "leave-01", "expense-01"], "relevant_ids": ["leave-01", "leave-02"]},
+    {"query": "How are travel expenses approved?", "ranked_ids": ["travel-03", "leave-01", "travel-01"], "relevant_ids": ["travel-01", "travel-03"]},
+    {"query": "What is the password rotation interval?", "ranked_ids": ["security-02", "security-01", "general-01"], "relevant_ids": ["security-01", "security-02"]}
+  ]
+}
