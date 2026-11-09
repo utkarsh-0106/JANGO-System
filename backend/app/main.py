@@ -10,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import inspect, text
 
 from backend.app.api.auth import router as auth_router
+from backend.app.api.settings import router as settings_router
 from backend.app.db import Base, engine
 from backend.app.models import AIUsage, Document, User
 from backend.app.routers.documents import router as documents_router
@@ -34,6 +35,10 @@ async def lifespan(_: FastAPI):
     if "users" in inspector.get_table_names():
         user_columns = {column["name"] for column in inspector.get_columns("users")}
         with engine.begin() as connection:
+            if "preferred_response_language" not in user_columns:
+                connection.execute(text("ALTER TABLE users ADD COLUMN preferred_response_language VARCHAR(20) NOT NULL DEFAULT 'auto'"))
+            if "retrieval_top_k" not in user_columns:
+                connection.execute(text("ALTER TABLE users ADD COLUMN retrieval_top_k INTEGER NOT NULL DEFAULT 5"))
             if "telegram_user_id" not in user_columns:
                 connection.execute(text("ALTER TABLE users ADD COLUMN telegram_user_id BIGINT"))
             if "telegram_link_token_hash" not in user_columns:
@@ -187,6 +192,7 @@ async def readiness_check():
 
 
 app.include_router(auth_router)
+app.include_router(settings_router)
 app.include_router(documents_router)
 app.include_router(rag_router, prefix="/api")
 app.include_router(usage_router, prefix="/api")

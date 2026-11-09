@@ -5,6 +5,7 @@ export default function Sidebar() {
 
   const isDashboard = location.pathname === "/dashboard";
   const isAnalytics = location.pathname === "/analytics";
+  const isSettings = location.pathname === "/settings";
 
   return (
     <aside className="jango-sidebar">
@@ -54,15 +55,13 @@ export default function Sidebar() {
           <span>Analytics</span>
         </Link>
 
-        <button
-          className="sidebar-link sidebar-disabled"
-          type="button"
-          disabled
+        <Link
+          to="/settings"
+          className={`sidebar-link ${isSettings ? "active" : ""}`}
         >
           <span className="sidebar-icon">⚙</span>
           <span>Settings</span>
-          <small>SOON</small>
-        </button>
+        </Link>
 
       </nav>
 

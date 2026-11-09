@@ -16,6 +16,7 @@ export default function Chat() {
   const [sourceError, setSourceError] = useState("");
   const [openingSource, setOpeningSource] = useState(false);
   const [responseLanguage, setResponseLanguage] = useState("auto");
+  const [retrievalTopK, setRetrievalTopK] = useState(5);
   const [listening, setListening] = useState(false);
   const [speakingMessage, setSpeakingMessage] = useState(null);
   const [voiceError, setVoiceError] = useState("");
@@ -23,6 +24,17 @@ export default function Chat() {
   const [telegramFeedback, setTelegramFeedback] = useState("");
   const recognitionRef = useRef(null);
   const utteranceRef = useRef(null);
+
+  useEffect(() => {
+    api.get("/api/settings")
+      .then(({ data }) => {
+        setResponseLanguage(data.preferred_response_language || "auto");
+        setRetrievalTopK(data.retrieval_top_k || 5);
+      })
+      .catch(() => {
+        // Keep safe defaults if preferences cannot be loaded.
+      });
+  }, []);
 
   useEffect(() => () => {
     if (recognitionRef.current) {
@@ -58,7 +70,7 @@ export default function Chat() {
     try {
       const response = await api.post("/api/rag/query", {
         question: trimmedQuestion,
-        top_k: 5,
+        top_k: retrievalTopK,
         response_language: responseLanguage,
       });
 

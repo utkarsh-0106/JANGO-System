@@ -16,6 +16,10 @@ class User(Base):
     is_superuser = Column(Boolean, default=False, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
+    # Per-user JANGO experience preferences.
+    preferred_response_language = Column(String(20), nullable=False, default="auto")
+    retrieval_top_k = Column(Integer, nullable=False, default=5)
+
     # Telegram account linking. Tokens are stored as SHA-256 hashes, never plaintext.
     telegram_user_id = Column(BigInteger, nullable=True, unique=True, index=True)
     telegram_link_token_hash = Column(String(64), nullable=True, index=True)

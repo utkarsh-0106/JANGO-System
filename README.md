@@ -591,3 +591,15 @@ behavior against the current code and environment configuration.
 ------------------------------------------------------------------------
 
 **JANGO --- Enterprise Document Intelligence Platform**
+
+
+## Workspace Settings
+
+Authenticated users can open **Settings** from the sidebar to manage their personal JANGO preferences.
+
+- Save a default response language (Automatic, English, Hindi, or Hinglish).
+- Save the retrieval Top-K value (1–20; the UI offers common presets). Ask Jango uses this saved value for subsequent queries.
+- View the configured primary AI provider and model. Provider credentials remain server-side and are never returned by the settings API.
+- Change the account password after verifying the current password.
+
+Preferences are stored on the user record. Existing databases receive backward-compatible defaulted columns (`auto` and `5`) during application startup; existing user accounts and documents are preserved. The current Gold & Silver appearance remains the fixed workspace theme.
