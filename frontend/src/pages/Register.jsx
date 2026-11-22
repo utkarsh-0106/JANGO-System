@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { getApiErrorMessage } from "../api/error";
-import authAI from "../assets/auth-ai.png";
+import authAI from "../assets/auth-ai.webp";
 
 export default function Register() {
   const navigate = useNavigate();

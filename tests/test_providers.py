@@ -140,3 +140,32 @@ def test_unsupported_providers_fail_clearly():
     with patch.object(vector_store.settings, "EMBEDDING_PROVIDER", "openai"):
         with pytest.raises(AIProviderConfigError, match="Unsupported EMBEDDING_PROVIDER"):
             vector_store._get_embeddings()
+
+
+def test_production_provider_candidates_exclude_ollama():
+    with (
+        patch.object(rag.settings, "ENVIRONMENT", "production"),
+        patch.object(rag.settings, "LLM_PROVIDER", "gemini"),
+        patch.object(rag.settings, "LLM_FALLBACK_PROVIDERS", "ollama,groq"),
+        patch.object(rag.settings, "GEMINI_API_KEY", "fake-gemini-key"),
+        patch.object(rag.settings, "GROQ_API_KEY", "fake-groq-key"),
+    ):
+        candidates = rag._provider_candidates()
+
+    providers = [provider for provider, _ in candidates]
+
+    assert "ollama" not in providers
+    assert "gemini" in providers
+    assert "groq" in providers
+
+
+def test_development_provider_candidates_allow_ollama():
+    with (
+        patch.object(rag.settings, "ENVIRONMENT", "development"),
+        patch.object(rag.settings, "LLM_PROVIDER", "gemini"),
+        patch.object(rag.settings, "LLM_FALLBACK_PROVIDERS", "ollama"),
+        patch.object(rag.settings, "GEMINI_API_KEY", "fake-gemini-key"),
+    ):
+        candidates = rag._provider_candidates()
+
+    assert ("ollama", rag.settings.OLLAMA_CHAT_MODEL) in candidates

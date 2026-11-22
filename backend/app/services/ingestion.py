@@ -18,6 +18,7 @@ from backend.app.db import SessionLocal
 from backend.app.models import Document
 from backend.app.services.documents import get_document
 from backend.app.services.vector_store import add_chunks, delete_document_vectors, embedding_identity
+from backend.app.services.lexical_search import replace_document_chunks, delete_document_chunks
 from backend.app.settings import settings
 
 CHUNK_SIZE = 1000
@@ -265,6 +266,7 @@ def ingest_document(document_id: int, db: Session, user_id: int) -> bool:
         # Replace old vectors only after extraction and validation have succeeded.
         delete_document_vectors(document.id)
         add_chunks(chunks)
+        replace_document_chunks(document.id, user_id, chunks)
         document.status = "ready"
         document.processing_error = None
         document.processed_at = datetime.utcnow()
@@ -280,6 +282,12 @@ def ingest_document(document_id: int, db: Session, user_id: int) -> bool:
             delete_document_vectors(document_id)
         except Exception as cleanup_exc:
             logger.error("vector_cleanup_failed document_id=%s error_type=%s", document_id, type(cleanup_exc).__name__)
+
+        try:
+            delete_document_chunks(document_id, user_id)
+        except Exception as cleanup_exc:
+            logger.error("lexical_cleanup_failed document_id=%s error_type=%s", document_id, type(cleanup_exc).__name__)
+
         failed = db.query(Document).filter(Document.id == document_id, Document.user_id == user_id).first()
         if failed:
             failed.status = "failed"

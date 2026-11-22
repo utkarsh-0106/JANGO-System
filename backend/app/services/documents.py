@@ -77,26 +77,66 @@ def delete_document(
 ) -> bool:
     document = get_document(db, document_id, user_id)
 
-    # DELETING is persisted first because the SQL row, file and Chroma vectors
-    # cannot participate in one distributed transaction. Keep the row if any
-    # compensating cleanup fails so an operator can reconcile it.
+    # Keep the database record until both indexes and the original file
+    # have been cleaned successfully.
     document.status = "deleting"
     db.commit()
+
+    cleanup_errors = []
+
     try:
         from backend.app.services.vector_store import delete_document_vectors
         delete_document_vectors(document.id)
+    except Exception as exc:
+        cleanup_errors.append(exc)
+
+    try:
+        from backend.app.services.lexical_search import delete_document_chunks
+        delete_document_chunks(document.id, user_id)
+    except Exception as exc:
+        cleanup_errors.append(exc)
+
+    if cleanup_errors:
+        db.rollback()
+        retained = (
+            db.query(Document)
+            .filter(
+                Document.id == document_id,
+                Document.user_id == user_id,
+            )
+            .first()
+        )
+        if retained:
+            retained.status = "failed"
+            retained.processing_error = (
+                "Deletion did not complete; retry or reconcile storage"
+            )
+            db.commit()
+        raise cleanup_errors[0]
+
+    try:
         path = Path(document.file_path)
         if path.is_file():
             path.unlink()
+
         db.delete(document)
         db.commit()
         return True
     except Exception:
         db.rollback()
-        retained = db.query(Document).filter(Document.id == document_id, Document.user_id == user_id).first()
+        retained = (
+            db.query(Document)
+            .filter(
+                Document.id == document_id,
+                Document.user_id == user_id,
+            )
+            .first()
+        )
         if retained:
             retained.status = "failed"
-            retained.processing_error = "Deletion did not complete; retry or reconcile storage"
+            retained.processing_error = (
+                "Deletion did not complete; retry or reconcile storage"
+            )
             db.commit()
         raise
 

@@ -1,5 +1,5 @@
-import logo from "../assets/logo.png";
-import jangoAvatar from "../assets/jango-avatar.png";
+import logo from "../assets/logo.webp";
+import jangoAvatar from "../assets/jango-avatar.webp";
 
 
 import { useEffect, useRef, useState } from "react";
@@ -8,8 +8,8 @@ import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import api from "../api/axios";
 
-import aiHero from "../assets/ai-hero.png";
-import documentsImage from "../assets/documents.png";
+import aiHero from "../assets/ai-hero.webp";
+import documentsImage from "../assets/documents.webp";
 
 import Sidebar from "../components/Sidebar";
 import AskJangoCard from "../components/AskJangoCard";
