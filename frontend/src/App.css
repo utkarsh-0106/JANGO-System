@@ -613,7 +613,7 @@ form button:disabled {
       rgba(7, 8, 18, 1),
       transparent 45%
     ),
-    url("./assets/background.png") center / cover no-repeat;
+    url("./assets/background.webp") center / cover no-repeat;
 
   opacity: 0.8;
 
@@ -1631,7 +1631,7 @@ form button:disabled {
   transform: translate(-50%, -50%);
 
   background:
-    url("./assets/background.png") center / cover no-repeat;
+    url("./assets/background.webp") center / cover no-repeat;
 
   opacity: 0.09;
 
@@ -2231,7 +2231,7 @@ form button:disabled {
         transparent,
         rgba(5, 6, 11, 0.96) 80%
       ),
-      url("./assets/background.png") center / cover no-repeat;
+      url("./assets/background.webp") center / cover no-repeat;
   }
 
   .dashboard-header > div {
@@ -2442,7 +2442,7 @@ form button:disabled {
      color: #f7f7fb;
      background:
        linear-gradient(rgba(4, 5, 12, 0.82), rgba(4, 5, 12, 0.94)),
-       url("./assets/background.png") center / cover fixed,
+       url("./assets/background.webp") center / cover fixed,
        #05060d;
    }
 
@@ -5839,7 +5839,7 @@ html[data-theme="gold-silver"] .jango-dashboard,
 html[data-theme="gold-silver"] .jango-chat-page {
   background:
     linear-gradient(rgba(3, 3, 3, 0.84), rgba(3, 3, 3, 0.95)),
-    url("./assets/background.png") center / cover fixed,
+    url("./assets/background.webp") center / cover fixed,
     #040404;
 }
 
@@ -5941,7 +5941,7 @@ html[data-theme="gold-silver"] .chat-empty-icon {
 html[data-theme="gold-silver"] .dashboard-header::after {
   background:
     linear-gradient(to right, transparent, rgba(3, 3, 3, 0.72)),
-    url("./assets/background.png") center / cover no-repeat;
+    url("./assets/background.webp") center / cover no-repeat;
 }
 
 /* =========================================================

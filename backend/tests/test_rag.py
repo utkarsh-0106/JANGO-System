@@ -49,7 +49,10 @@ def test_ingestion_extracts_pages_and_metadata(tmp_path):
         ingestion,
         "add_chunks",
         return_value=["1", "2"],
-    ) as add_chunks:
+    ) as add_chunks, patch.object(
+        ingestion,
+        "replace_document_chunks",
+    ) as replace_lexical:
 
         result = ingestion.ingest_document(
             document_id=123,
@@ -63,6 +66,7 @@ def test_ingestion_extracts_pages_and_metadata(tmp_path):
     chunks = add_chunks.call_args.args[0]
 
     assert len(chunks) >= 2
+    replace_lexical.assert_called_once_with(123, 7, chunks)
 
     for chunk in chunks:
         assert chunk.metadata["document_id"] == 123
@@ -379,3 +383,222 @@ def test_rag_request_rejects_unsupported_response_language():
 
     with pytest.raises(ValidationError):
         RagRequest(question="Hello", response_language="french")
+
+
+
+def test_reciprocal_rank_fusion_merges_and_deduplicates_results():
+    semantic_doc = LangChainDocument(
+        page_content="Employees receive 20 days of annual leave.",
+        metadata={"document_id": 10, "user_id": 5, "filename": "policy.pdf", "page_number": 3},
+    )
+    semantic_only_doc = LangChainDocument(
+        page_content="Annual leave requests need manager approval.",
+        metadata={"document_id": 11, "user_id": 5, "filename": "handbook.pdf", "page_number": 8},
+    )
+
+    lexical_results = [
+        {
+            "content": "Employees receive 20 days of annual leave.",
+            "metadata": {"document_id": 10, "user_id": 5, "filename": "policy.pdf", "page_number": 3},
+            "score": -2.5,
+        },
+        {
+            "content": "Annual leave balance is updated monthly.",
+            "metadata": {"document_id": 12, "user_id": 5, "filename": "benefits.pdf", "page_number": 2},
+            "score": -1.8,
+        },
+    ]
+
+    fused = rag._reciprocal_rank_fusion(
+        semantic_results=[(semantic_doc, 0.12), (semantic_only_doc, 0.2)],
+        lexical_results=lexical_results,
+        limit=5,
+    )
+
+    assert len(fused) == 3
+    assert fused[0][0].metadata["document_id"] == 10
+    assert fused[0][0].page_content == semantic_doc.page_content
+    assert fused[0][1] > fused[1][1]
+    assert {item[0].metadata["document_id"] for item in fused} == {10, 11, 12}
+
+
+def test_reciprocal_rank_fusion_respects_result_limit():
+    documents = [
+        (
+            LangChainDocument(
+                page_content=f"Unique content {index}",
+                metadata={"document_id": index, "user_id": 1},
+            ),
+            0.1,
+        )
+        for index in range(1, 5)
+    ]
+
+    fused = rag._reciprocal_rank_fusion(
+        semantic_results=documents,
+        lexical_results=[],
+        limit=2,
+    )
+
+    assert len(fused) == 2
+
+
+def test_rag_uses_lexical_results_when_semantic_search_fails():
+    request = RagRequest(question="What is the leave policy?")
+    lexical_result = {
+        "content": "Employees receive 20 days of annual leave.",
+        "metadata": {
+            "document_id": 10,
+            "user_id": 5,
+            "filename": "employee_policy.pdf",
+            "page_number": 3,
+        },
+        "score": -2.0,
+    }
+
+    fake_response = Mock()
+    fake_response.content = "Employees receive 20 days of annual leave."
+    fake_llm = Mock()
+    fake_llm.invoke.return_value = fake_response
+
+    with patch.object(
+        rag,
+        "similarity_search",
+        side_effect=RuntimeError("Chroma temporarily unavailable"),
+    ), patch.object(
+        rag,
+        "keyword_search",
+        return_value=[lexical_result],
+    ) as lexical_search, patch.object(
+        rag,
+        "_get_llm",
+        return_value=fake_llm,
+    ):
+        response = rag.query_rag(request, user_id=5)
+
+    assert response.answer == "Employees receive 20 days of annual leave."
+    assert len(response.sources) == 1
+    assert response.sources[0]["filename"] == "employee_policy.pdf"
+    assert response.sources[0]["page_number"] == 3
+    lexical_search.assert_called_once_with(
+        query="What is the leave policy?",
+        user_id=5,
+        k=5,
+    )
+
+
+def test_rag_uses_semantic_results_when_lexical_search_fails():
+    request = RagRequest(question="What is the leave policy?")
+    semantic_result = [
+        (
+            LangChainDocument(
+                page_content="Employees receive 20 days of annual leave.",
+                metadata={
+                    "document_id": 10,
+                    "user_id": 5,
+                    "filename": "employee_policy.pdf",
+                    "page_number": 3,
+                },
+            ),
+            0.12,
+        )
+    ]
+
+    fake_response = Mock()
+    fake_response.content = "Employees receive 20 days of annual leave."
+    fake_llm = Mock()
+    fake_llm.invoke.return_value = fake_response
+
+    with patch.object(
+        rag,
+        "similarity_search",
+        return_value=semantic_result,
+    ), patch.object(
+        rag,
+        "keyword_search",
+        side_effect=RuntimeError("FTS index temporarily unavailable"),
+    ), patch.object(
+        rag,
+        "_get_llm",
+        return_value=fake_llm,
+    ):
+        response = rag.query_rag(request, user_id=5)
+
+    assert response.answer == "Employees receive 20 days of annual leave."
+    assert len(response.sources) == 1
+    assert response.sources[0]["filename"] == "employee_policy.pdf"
+
+
+def test_rag_returns_503_and_logs_both_retrieval_failures(caplog):
+    caplog.set_level("INFO")
+    request = RagRequest(question="What is the leave policy?")
+
+    with patch.object(
+        rag,
+        "similarity_search",
+        side_effect=RuntimeError("Chroma unavailable"),
+    ), patch.object(
+        rag,
+        "keyword_search",
+        side_effect=OSError("Lexical index unavailable"),
+    ):
+        with pytest.raises(HTTPException) as exc_info:
+            rag.query_rag(request, user_id=5)
+
+    assert exc_info.value.status_code == 503
+    assert isinstance(exc_info.value.__cause__, RuntimeError)
+
+    failure_records = [
+        record for record in caplog.records
+        if "document_retrieval_failed" in record.message
+    ]
+
+    assert len(failure_records) == 1
+    assert failure_records[0].exc_info is None
+    assert "RuntimeError" in failure_records[0].message
+    assert "OSError" in failure_records[0].message
+
+    metric_records = [
+        record for record in caplog.records
+        if "document_retrieval_complete" in record.message
+    ]
+    assert len(metric_records) == 1
+    assert "semantic_status=error" in metric_records[0].message
+    assert "lexical_status=error" in metric_records[0].message
+    assert "fused_count=0" in metric_records[0].message
+
+
+def test_rag_logs_retrieval_metrics_without_document_content(caplog):
+    caplog.set_level("INFO")
+    request = RagRequest(question="What is the leave policy?")
+
+    with patch.object(
+        rag,
+        "similarity_search",
+        return_value=[],
+    ), patch.object(
+        rag,
+        "keyword_search",
+        return_value=[],
+    ):
+        response = rag.query_rag(request, user_id=5)
+
+    assert response.sources == []
+
+    metric_records = [
+        record for record in caplog.records
+        if "document_retrieval_complete" in record.message
+    ]
+
+    assert len(metric_records) == 1
+    message = metric_records[0].message
+
+    assert "user_id=5" in message
+    assert "semantic_count=0" in message
+    assert "lexical_count=0" in message
+    assert "fused_count=0" in message
+    assert "semantic_latency_ms=" in message
+    assert "lexical_latency_ms=" in message
+    assert "fusion_latency_ms=" in message
+    assert "total_latency_ms=" in message
+    assert "What is the leave policy?" not in message

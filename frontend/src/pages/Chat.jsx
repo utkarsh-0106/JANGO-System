@@ -3,9 +3,9 @@ import { Link } from "react-router-dom";
 
 import api from "../api/axios";
 
-import chatAI from "../assets/chat-ai.png";
-import jangoAvatar from "../assets/jango-avatar.png";
-import logo from "../assets/logo.png";
+import chatAI from "../assets/chat-ai.webp";
+import jangoAvatar from "../assets/jango-avatar.webp";
+import logo from "../assets/logo.webp";
 import TelegramConnectCard from "../components/TelegramConnectCard";
 export default function Chat() {
   const [question, setQuestion] = useState("");

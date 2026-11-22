@@ -8,6 +8,7 @@ from typing import Any
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
 from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.documents import Document as LangChainDocument
 
 from backend.app.schemas.rag import RagRequest, RagResponse
 from backend.app.services.ai_config import (
@@ -18,6 +19,7 @@ from backend.app.services.ai_config import (
     require_groq_api_key,
 )
 from backend.app.services.vector_store import similarity_search
+from backend.app.services.lexical_search import keyword_search
 from backend.app.services.ai_usage import (
     calculate_cost_usd,
     extract_token_usage,
@@ -144,8 +146,16 @@ def _provider_candidates() -> list[tuple[str, str]]:
     else:
         candidates.append((primary, _model_for_provider(primary)))
 
+    production = settings.ENVIRONMENT.strip().lower() == "production"
+
     for provider in _csv(settings.LLM_FALLBACK_PROVIDERS):
         provider = normalize_provider(provider)
+
+        # Ollama runs on the developer's machine and is not reachable
+        # from cloud deployments such as Render.
+        if production and provider == "ollama":
+            continue
+
         if provider == primary or not _configured_provider(provider):
             continue
         candidate = (provider, _model_for_provider(provider))
@@ -218,6 +228,68 @@ def _content_to_text(content: Any) -> str:
     return str(content).strip()
 
 
+
+def _reciprocal_rank_fusion(
+    semantic_results: list,
+    lexical_results: list[dict[str, Any]],
+    limit: int,
+    rrf_k: int = 60,
+) -> list[tuple[LangChainDocument, float]]:
+    """Merge semantic and BM25 rankings without comparing their raw scores."""
+    fused: dict[tuple[str, str], dict[str, Any]] = {}
+
+    ranked_lists = []
+
+    semantic_ranked = [
+        (document, float(score))
+        for document, score in semantic_results
+    ]
+    ranked_lists.append(semantic_ranked)
+
+    lexical_ranked = []
+    for result in lexical_results:
+        document = LangChainDocument(
+            page_content=str(result.get("content", "")),
+            metadata=dict(result.get("metadata") or {}),
+        )
+        lexical_ranked.append((document, float(result.get("score", 0.0))))
+    ranked_lists.append(lexical_ranked)
+
+    for ranked_list in ranked_lists:
+        seen_in_list = set()
+
+        for rank, (document, _raw_score) in enumerate(ranked_list, start=1):
+            content = " ".join(document.page_content.split()).casefold()
+            if not content:
+                continue
+
+            metadata = document.metadata or {}
+            document_id = metadata.get("document_id", "unknown")
+            key = (str(document_id), content)
+
+            if key in seen_in_list:
+                continue
+            seen_in_list.add(key)
+
+            if key not in fused:
+                fused[key] = {
+                    "document": document,
+                    "score": 0.0,
+                }
+
+            fused[key]["score"] += 1.0 / (rrf_k + rank)
+
+    ordered = sorted(
+        fused.values(),
+        key=lambda item: item["score"],
+        reverse=True,
+    )
+    return [
+        (item["document"], item["score"])
+        for item in ordered[:max(1, limit)]
+    ]
+
+
 def query_rag(
     rag_request: RagRequest,
     user_id: int,
@@ -237,16 +309,98 @@ def query_rag(
     }
     language_instruction = language_instructions.get(response_language, language_instructions["auto"])
 
+    retrieval_started_at = time.perf_counter()
+    semantic_results = []
+    lexical_results = []
+    retrieval_errors = []
+
+    semantic_started_at = time.perf_counter()
     try:
-        results = similarity_search(
+        semantic_results = similarity_search(
             query=question,
             user_id=user_id,
             k=top_k,
         )
+        semantic_status = "success"
     except Exception as exc:
-        import logging
-        logging.getLogger("jango.rag").exception("document_retrieval_failed user_id=%s error_type=%s", user_id, type(exc).__name__)
-        raise HTTPException(status_code=503, detail="Document retrieval is temporarily unavailable") from exc
+        retrieval_errors.append(exc)
+        semantic_status = "error"
+        logger.warning(
+            "semantic_retrieval_failed user_id=%s error_type=%s",
+            user_id,
+            type(exc).__name__,
+        )
+    semantic_latency_ms = (time.perf_counter() - semantic_started_at) * 1000
+
+    lexical_started_at = time.perf_counter()
+    try:
+        lexical_results = keyword_search(
+            query=question,
+            user_id=user_id,
+            k=top_k,
+        )
+        lexical_status = "success"
+    except Exception as exc:
+        retrieval_errors.append(exc)
+        lexical_status = "error"
+        logger.warning(
+            "lexical_retrieval_failed user_id=%s error_type=%s",
+            user_id,
+            type(exc).__name__,
+        )
+    lexical_latency_ms = (time.perf_counter() - lexical_started_at) * 1000
+
+    both_failed = (
+        bool(retrieval_errors)
+        and not semantic_results
+        and not lexical_results
+    )
+
+    fusion_latency_ms = 0.0
+    results = []
+
+    if not both_failed:
+        fusion_started_at = time.perf_counter()
+        results = _reciprocal_rank_fusion(
+            semantic_results=semantic_results,
+            lexical_results=lexical_results,
+            limit=top_k,
+        )
+        fusion_latency_ms = (
+            time.perf_counter() - fusion_started_at
+        ) * 1000
+
+    total_retrieval_latency_ms = (
+        time.perf_counter() - retrieval_started_at
+    ) * 1000
+
+    logger.info(
+        "document_retrieval_complete user_id=%s "
+        "semantic_status=%s semantic_count=%s semantic_latency_ms=%.2f "
+        "lexical_status=%s lexical_count=%s lexical_latency_ms=%.2f "
+        "fused_count=%s fusion_latency_ms=%.2f total_latency_ms=%.2f",
+        user_id,
+        semantic_status,
+        len(semantic_results),
+        semantic_latency_ms,
+        lexical_status,
+        len(lexical_results),
+        lexical_latency_ms,
+        len(results),
+        fusion_latency_ms,
+        total_retrieval_latency_ms,
+    )
+
+    if both_failed:
+        logger.error(
+            "document_retrieval_failed user_id=%s error_types=%s",
+            user_id,
+            ",".join(type(error).__name__ for error in retrieval_errors),
+        )
+        raise HTTPException(
+            status_code=503,
+            detail="Document retrieval is temporarily unavailable",
+        ) from retrieval_errors[0]
 
     if not results:
         return RagResponse(

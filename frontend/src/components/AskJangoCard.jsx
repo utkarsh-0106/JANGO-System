@@ -1,7 +1,7 @@
 import { useState } from "react";
 
 import api from "../api/axios";
-import jangoAvatar from "../assets/jango-avatar.png";
+import jangoAvatar from "../assets/jango-avatar.webp";
 
 export default function AskJangoCard({ documentCount = 0 }) {
 
